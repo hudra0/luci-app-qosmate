@@ -1,0 +1,28 @@
+{
+    "luci-app-qosmate": {
+        "description": "Grant access to QoSmate configuration",
+        "read": {
+            "ubus": {
+                "luci": [ "getInitList", "setInitAction", "getInitActionStatus", "exec" ]
+                
+            },
+            "uci": [ "qosmate" ],
+            "file": {
+                "/etc/qosmate.sh": [ "read" ],         
+                "/etc/init.d/qosmate": [ "read", "exec" ],
+                "/etc/hotplug.d/iface/13-qosmateHotplug": [ "read" ]
+            }
+        },
+        "write": {
+            "ubus": {
+                "luci": [ "setInitAction", "exec" ]
+            },
+            "uci": [ "qosmate" ],
+            "file": {
+                "/etc/qosmate.sh": [ "write" ],
+                "/etc/init.d/qosmate": [ "write" ],                   
+                "/etc/hotplug.d/iface/13-qosmateHotplug": [ "write" ]
+            }
+        }
+    }
+}
