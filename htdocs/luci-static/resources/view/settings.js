@@ -112,8 +112,7 @@ return view.extend({
                     '<strong>' + _('Latest Version') + ':</strong> ' + latestVersion + '<br>';
 
             if (updateAvailable) {
-                html += '<br><span style="color: red;">' + _('A new version is available!') + '</span><br>' +
-                        '<input type="button" class="btn cbi-button cbi-button-apply" value="' + _('Update Now') + '" onclick="updateQosmate()">';
+                html += '<br><span style="color: red;">' + _('A new version is available!') + '</span><br>';
             } else if (currentVersion !== 'Unknown' && latestVersion !== 'Unknown') {
                 html += '<br><span style="color: green;">' + _('QoSmate is up to date.') + '</span>';
             } else {
