@@ -66,24 +66,48 @@ return view.extend({
 
         // Add mapping information to the description
         s.description = E('div', { 'class': 'cbi-section-descr' }, [
-
             E('h4', _('HFSC Mapping:')),
-            E('pre', [
-                'High Priority (1:11): EF, CS5, CS6, CS7\n',
-                'Fast Non-Realtime (1:12): CS4, AF41, AF42\n',
-                'Normal (1:13): CS0\n',
-                'Low Priority (1:14): CS2\n',
-                'Bulk (1:15): CS1'
-            ].join('')),
+            E('table', { 'class': 'table' }, [
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left', 'width': '50%' }, _('High Priority (1:11)')),
+                    E('td', { 'class': 'td left' }, 'EF, CS5, CS6, CS7')
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Fast Non-Realtime (1:12)')),
+                    E('td', { 'class': 'td left' }, 'CS4, AF41, AF42')
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Normal (1:13)')),
+                    E('td', { 'class': 'td left' }, 'CS0')
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Low Priority (1:14)')),
+                    E('td', { 'class': 'td left' }, 'CS2')
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Bulk (1:15)')),
+                    E('td', { 'class': 'td left' }, 'CS1')
+                ])
+            ]),
             E('h4', _('CAKE Mapping (diffserv4):')),
-            E('pre', [
-                'Priority    Tin     Service Class           DSCP\n',
-                '-----------------------------------------------\n',
-                'Highest     Tin 4   Voice                   CS7, CS6, EF, VA, CS5, CS4\n',
-                '            Tin 3   Video                   CS3, AF4, AF3, CS2, TOS1\n',
-                '            Tin 2   Best Effort             CS0, AF1, AF2, TOS0\n',
-                'Lowest      Tin 1   Background Traffic      CS1, LE in kernel v5.9+\n'
-            ].join(''))
+            E('table', { 'class': 'table' }, [
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left', 'width': '50%' }, _('Voice (Highest Priority)')),
+                    E('td', { 'class': 'td left' }, 'CS7, CS6, EF, VA, CS5, CS4')
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Video')),
+                    E('td', { 'class': 'td left' }, 'CS3, AF4x, AF3x, CS2, TOS1')
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Best Effort')),
+                    E('td', { 'class': 'td left' }, 'CS0, AF1x, AF2x, TOS0')
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Bulk (Lowest Priority)')),
+                    E('td', { 'class': 'td left' }, 'CS1, LE')
+                ])
+            ])
         ]);
 
         o = s.taboption('general', form.Value, 'name', _('Name'));
