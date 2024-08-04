@@ -1,3 +1,4 @@
+
 {
     "luci-app-qosmate": {
         "description": "Grant access to QoSmate configuration",
@@ -10,7 +11,9 @@
             "file": {
                 "/etc/qosmate.sh": [ "read" ],         
                 "/etc/init.d/qosmate": [ "read", "exec" ],
-                "/etc/hotplug.d/iface/13-qosmateHotplug": [ "read" ]
+                "/etc/hotplug.d/iface/13-qosmateHotplug": [ "read" ],
+                "/etc/config/qosmate": [ "read" ],   
+                "/tmp/qosmate_auto_setup_output.txt": [ "read" ]                                          
             }
         },
         "write": {
