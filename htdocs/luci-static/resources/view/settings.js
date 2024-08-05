@@ -167,7 +167,8 @@ return view.extend({
                         'click': ui.createHandlerFn(this, function() {
                             var gamingIp = document.getElementById('gaming_ip').value;
                             ui.showModal(_('Running Auto Setup'), [
-                                E('p', { 'class': 'spinning' }, _('Please wait while the auto setup is in progress...'))
+                                E('p', { 'class': 'spinning' }, _('Please wait while the auto setup is in progress...')),
+                                E('p', _('Note: Speed test results may vary. You might need to adjust the values manually for optimal performance.'))
                             ]);
                             return fs.exec_direct('/etc/init.d/qosmate', ['auto_setup_noninteractive', gamingIp])
                                 .then(function(res) {
@@ -175,16 +176,22 @@ return view.extend({
                                     return fs.read(outputFile).then(function(output) {
                                         ui.hideModal();
                                         
-                                        // Extrahiere relevante Informationen
                                         var wanInterface = output.match(/Detected WAN interface: (.+)/);
                                         var downloadSpeed = output.match(/Download speed: (.+) Mbit\/s/);
                                         var uploadSpeed = output.match(/Upload speed: (.+) Mbit\/s/);
                                         var downrate = output.match(/DOWNRATE: (.+) kbps/);
                                         var uprate = output.match(/UPRATE: (.+) kbps/);
+
+                                        if (!downloadSpeed || !uploadSpeed || parseFloat(downloadSpeed[1]) <= 0 || parseFloat(uploadSpeed[1]) <= 0 ||
+                                        !downrate || !uprate || parseInt(downrate[1]) <= 0 || parseInt(uprate[1]) <= 0) {
+                                        ui.addNotification(null, E('p', _('Invalid speed test results. Please try again or set values manually.')), 'error');
+                                        return;
+                                        }                                        
                                         var gamingRules = output.match(/Gaming device rules added for IP: (.+)/);
         
                                         ui.showModal(_('Auto Setup Results'), [
                                             E('h4', _('Speed Test Results')),
+                                            E('p', { 'style': 'color: orange;' }, _('Note: These results are estimates. Fine-tuning may be required for best performance.')),
                                             E('div', { 'class': 'cbi-value' }, [
                                                 E('label', { 'class': 'cbi-value-title' }, _('WAN Interface')),
                                                 E('div', { 'class': 'cbi-value-field' }, wanInterface ? wanInterface[1] : _('Not detected'))
@@ -214,8 +221,37 @@ return view.extend({
                                                 E('button', {
                                                     'class': 'btn cbi-button-action',
                                                     'click': ui.createHandlerFn(this, function() {
-                                                        ui.hideModal();
-                                                        location.reload();
+                                                        ui.showModal(_('Applying Changes'), [
+                                                            E('p', { 'class': 'spinning' }, _('Please wait while the changes are being applied...'))
+                                                        ]);
+                                                        
+                                                        var rootQdisc = uci.get('qosmate', 'settings', 'ROOT_QDISC');
+                                                        var downrateValue = downrate ? parseInt(downrate[1]) : 0;
+                                                        var uprateValue = uprate ? parseInt(uprate[1]) : 0;
+                                                        
+                                                        if (rootQdisc === 'hfsc' && (downrateValue <= 0 || uprateValue <= 0)) {
+                                                            ui.hideModal();
+                                                            ui.addNotification(null, E('p', _('Invalid rates for HFSC. Please set non-zero values manually.')), 'error');
+                                                        } else {
+                                                            uci.set('qosmate', 'settings', 'DOWNRATE', downrateValue.toString());
+                                                            uci.set('qosmate', 'settings', 'UPRATE', uprateValue.toString());
+                                                            
+                                                            uci.save()
+                                                            .then(() => {
+                                                                return fs.exec_direct('/etc/init.d/qosmate', ['restart']);
+                                                            })
+                                                            .then(() => {
+                                                                ui.hideModal();
+                                                                ui.addNotification(null, E('p', _('QoSmate settings updated and service restarted.')), 'success');
+                                                                window.setTimeout(function() {
+                                                                    location.reload();
+                                                                }, 2000);
+                                                            })
+                                                            .catch(function(err) {
+                                                                ui.hideModal();
+                                                                ui.addNotification(null, E('p', _('Failed to update settings or restart QoSmate: ') + err), 'error');
+                                                            });
+                                                        }
                                                     })
                                                 }, _('Apply and Reload'))
                                             ])
@@ -263,7 +299,7 @@ return view.extend({
 
         s = m.section(form.NamedSection, 'settings', 'settings', _('Basic Settings'));
         s.anonymous = true;
-
+        
         function createOption(name, title, description, placeholder, datatype) {
             var opt = s.option(form.Value, name, title, description);
             opt.datatype = datatype || 'string';
@@ -274,21 +310,34 @@ return view.extend({
                 opt.validate = function(section_id, value) {
                     if (value === '' || value === null) return true;
                     if (!/^\d+$/.test(value)) return _('Must be a non-negative integer or empty');
+                    var intValue = parseInt(value, 10);
+                    var rootQdisc = this.section.formvalue(section_id, 'ROOT_QDISC');
+                    if (intValue === 0 && rootQdisc === 'hfsc') {
+                        return _('Value must be greater than 0 for HFSC');
+                    }
                     return true;
                 };
             }
             return opt;
         }
-
+        
         createOption('WAN', _('WAN Interface'), _('Select the WAN interface'), _('Default: eth1'));
         createOption('DOWNRATE', _('Download Rate (kbps)'), _('Set the download rate in kbps'), _('Default: 90000'), 'uinteger');
         createOption('UPRATE', _('Upload Rate (kbps)'), _('Set the upload rate in kbps'), _('Default: 45000'), 'uinteger');
-
+        
         o = s.option(form.ListValue, 'ROOT_QDISC', _('Root Queueing Discipline'), _('Select the root queueing discipline'));
         o.value('hfsc', _('HFSC'));
         o.value('cake', _('CAKE'));
         o.default = 'hfsc';
-
+        o.onchange = function(ev, section_id, value) {
+            var downrate = this.map.lookupOption('DOWNRATE', section_id)[0];
+            var uprate = this.map.lookupOption('UPRATE', section_id)[0];
+            if (downrate && uprate) {
+                downrate.map.checkDepends();
+                uprate.map.checkDepends();
+            }
+        };
+        
         return m.render();
     }
 });
