@@ -189,35 +189,40 @@ return view.extend({
                                         }                                        
                                         var gamingRules = output.match(/Gaming device rules added for IP: (.+)/);
         
-                                        ui.showModal(_('Auto Setup Results'), [
-                                            E('h4', _('Speed Test Results')),
-                                            E('p', { 'style': 'color: orange;' }, _('Note: These results are estimates. Fine-tuning may be required for best performance.')),
-                                            E('div', { 'class': 'cbi-value' }, [
-                                                E('label', { 'class': 'cbi-value-title' }, _('WAN Interface')),
-                                                E('div', { 'class': 'cbi-value-field' }, wanInterface ? wanInterface[1] : _('Not detected'))
+                                        ui.showModal(_(''), [
+                                            E('h2', { 'style': 'text-align:center; margin-bottom: 1em;' }, _('Auto Setup Results')),
+                                            E('h3', { 'style': 'margin-bottom: 0.5em;' }, _('Speed Test Results')),
+                                            E('p', { 'style': 'color: orange; margin-bottom: 1em;' }, _('Note: These results are estimates. Fine-tuning may be required for best performance.')),
+                                            E('div', { 'style': 'display: table; width: 100%;' }, [
+                                                E('div', { 'style': 'display: table-row;' }, [
+                                                    E('div', { 'style': 'display: table-cell; padding: 5px; font-weight: bold;' }, _('WAN Interface')),
+                                                    E('div', { 'style': 'display: table-cell; padding: 5px;' }, wanInterface ? wanInterface[1] : _('Not detected'))
+                                                ]),
+                                                E('div', { 'style': 'display: table-row;' }, [
+                                                    E('div', { 'style': 'display: table-cell; padding: 5px; font-weight: bold;' }, _('Download Speed')),
+                                                    E('div', { 'style': 'display: table-cell; padding: 5px;' }, downloadSpeed ? downloadSpeed[1] + ' Mbit/s' : _('Not available'))
+                                                ]),
+                                                E('div', { 'style': 'display: table-row;' }, [
+                                                    E('div', { 'style': 'display: table-cell; padding: 5px; font-weight: bold;' }, _('Upload Speed')),
+                                                    E('div', { 'style': 'display: table-cell; padding: 5px;' }, uploadSpeed ? uploadSpeed[1] + ' Mbit/s' : _('Not available'))
+                                                ])
                                             ]),
-                                            E('div', { 'class': 'cbi-value' }, [
-                                                E('label', { 'class': 'cbi-value-title' }, _('Download Speed')),
-                                                E('div', { 'class': 'cbi-value-field' }, downloadSpeed ? downloadSpeed[1] + ' Mbit/s' : _('Not available'))
+                                            E('h3', { 'style': 'margin-top: 1em; margin-bottom: 0.5em;' }, _('QoS Configuration')),
+                                            E('div', { 'style': 'display: table; width: 100%;' }, [
+                                                E('div', { 'style': 'display: table-row;' }, [
+                                                    E('div', { 'style': 'display: table-cell; padding: 5px; font-weight: bold;' }, _('Download Rate')),
+                                                    E('div', { 'style': 'display: table-cell; padding: 5px;' }, downrate ? downrate[1] + ' kbps' : _('Not set'))
+                                                ]),
+                                                E('div', { 'style': 'display: table-row;' }, [
+                                                    E('div', { 'style': 'display: table-cell; padding: 5px; font-weight: bold;' }, _('Upload Rate')),
+                                                    E('div', { 'style': 'display: table-cell; padding: 5px;' }, uprate ? uprate[1] + ' kbps' : _('Not set'))
+                                                ])
                                             ]),
-                                            E('div', { 'class': 'cbi-value' }, [
-                                                E('label', { 'class': 'cbi-value-title' }, _('Upload Speed')),
-                                                E('div', { 'class': 'cbi-value-field' }, uploadSpeed ? uploadSpeed[1] + ' Mbit/s' : _('Not available'))
-                                            ]),
-                                            E('h4', _('QoS Configuration')),
-                                            E('div', { 'class': 'cbi-value' }, [
-                                                E('label', { 'class': 'cbi-value-title' }, _('Download Rate')),
-                                                E('div', { 'class': 'cbi-value-field' }, downrate ? downrate[1] + ' kbps' : _('Not set'))
-                                            ]),
-                                            E('div', { 'class': 'cbi-value' }, [
-                                                E('label', { 'class': 'cbi-value-title' }, _('Upload Rate')),
-                                                E('div', { 'class': 'cbi-value-field' }, uprate ? uprate[1] + ' kbps' : _('Not set'))
-                                            ]),
-                                            gamingRules ? E('div', { 'class': 'cbi-value' }, [
-                                                E('label', { 'class': 'cbi-value-title' }, _('Gaming Rules')),
-                                                E('div', { 'class': 'cbi-value-field' }, _('Added for IP: ') + gamingRules[1])
+                                            gamingRules ? E('div', { 'style': 'margin-top: 1em;' }, [
+                                                E('div', { 'style': 'font-weight: bold;' }, _('Gaming Rules')),
+                                                E('div', {}, _('Added for IP: ') + gamingRules[1])
                                             ]) : '',
-                                            E('div', { 'class': 'right' }, [
+                                            E('div', { 'class': 'right', 'style': 'margin-top: 1em;' }, [
                                                 E('button', {
                                                     'class': 'btn cbi-button-action',
                                                     'click': ui.createHandlerFn(this, function() {
