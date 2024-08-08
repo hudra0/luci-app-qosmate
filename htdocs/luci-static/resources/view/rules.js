@@ -211,6 +211,20 @@ return view.extend({
         o = s.taboption('general', form.Flag, 'counter', _('Enable counter'));
         o.rmempty = false;
 
+        o = s.taboption('general', form.Flag, 'enabled', _('Enable'));
+        o.rmempty = false;
+        o.editable = true;
+        o.default = '1';  // Set default value to enabled
+        o.write = function(section_id, formvalue) {
+            // Always write the value, whether it's '0' or '1'
+            uci.set('qosmate', section_id, 'enabled', formvalue);
+        };
+        o.load = function(section_id) {
+            var value = uci.get('qosmate', section_id, 'enabled');
+            // If the value is undefined (not set in config), return '1' (enabled)
+            return (value === undefined) ? '1' : value;
+        };        
+
         return m.render();
     }
 });
