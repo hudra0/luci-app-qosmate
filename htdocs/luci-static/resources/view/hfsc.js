@@ -95,7 +95,7 @@ return view.extend({
         o.default = 'fq_codel';
 
         createOption('nongameqdiscoptions', _('Non-Game QDisc Options'), _('Cake options for non-game queueing discipline'), _('Default: besteffort ack-filter'));
-        createOption('MAXDEL', _('Max Delay (ms)'), _('Maximum delay in milliseconds'), _('Default: 16'), 'uinteger');
+        createOption('MAXDEL', _('Max Delay (ms)'), _('Maximum delay in milliseconds'), _('Default: 24'), 'uinteger');
         createOption('PFIFOMIN', _('PFIFO Min'), _('Minimum PFIFO value'), _('Default: 5'), 'uinteger');
         createOption('PACKETSIZE', _('Packet Size'), _('Average packet size'), _('Default: 450'), 'uinteger');
         createOption('netemdelayms', _('NETEM Delay (ms)'), _('NETEM delay in milliseconds'), _('Default: 30'), 'uinteger');
