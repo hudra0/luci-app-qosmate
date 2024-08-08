@@ -92,7 +92,7 @@ return view.extend({
 
         createOption('UDPBULKPORT', _('UDP Bulk Ports'), _('Specify UDP ports for bulk traffic'), _('Default: 51413'));
         createOption('TCPBULKPORT', _('TCP Bulk Ports'), _('Specify TCP ports for bulk traffic'), _('Default: 51413,6881-6889'));
-        createOption('VIDCONFPORTS', _('Video Conference Ports'), _('Specify ports for video conferencing'), _('Default: 10000,3478-3479,8801-8802,19302-19309,5938,53'));
+        createOption('VIDCONFPORTS', _('Video Conference Ports'), _('Specify ports for video conferencing'), _('Default: 3478-3479,19302-19309,5938,53'));
         createOption('REALTIME4', _('Realtime IPv4'), _('Realtime IPv4 addresses'), _('Default: none'));
         createOption('REALTIME6', _('Realtime IPv6'), _('Realtime IPv6 addresses'), _('Default: none'));
         createOption('LOWPRIOLAN4', _('Low Priority LAN IPv4'), _('Low priority LAN IPv4 addresses'), _('Default: none'));
