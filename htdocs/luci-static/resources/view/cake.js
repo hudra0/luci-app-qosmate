@@ -127,7 +127,13 @@ return view.extend({
         o.rmempty = false;
         o.default = '0';
 
-        createOption('ACK_FILTER_EGRESS', _('ACK Filter (Egress)'), _('Set ACK filter for egress'), _('Default: auto'));
+        o = s.option(form.ListValue, 'ACK_FILTER_EGRESS', _('ACK Filter (Egress)'), 
+            _('Set ACK filter for egress. Auto enables filtering if download/upload ratio ≥ 15.'));
+        o.value('auto', _('Auto'));
+        o.value('1', _('Enable'));
+        o.value('0', _('Disable'));
+        o.default = 'auto';
+
         createOption('RTT', _('RTT'), _('Set the Round Trip Time'), _('Default: auto'), 'uinteger');
 
         o = s.option(form.Flag, 'AUTORATE_INGRESS', _('Autorate (Ingress)'), _('Enable autorate for ingress'));
