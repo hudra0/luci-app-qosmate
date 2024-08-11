@@ -168,7 +168,10 @@ return view.extend({
                             var gamingIp = document.getElementById('gaming_ip').value;
                             ui.showModal(_('Running Auto Setup'), [
                                 E('p', { 'class': 'spinning' }, _('Please wait while the auto setup is in progress...')),
-                                E('p', _('Note: Speed test results may vary. You might need to adjust the values manually for optimal performance.'))
+                                E('div', { 'style': 'margin-top: 1em; border-top: 1px solid #ccc; padding-top: 1em;' }, [
+                                    E('p', { 'style': 'font-weight: bold;' }, _('Note:')),
+                                    E('p', _('Router-based speed tests may underestimate actual speeds. These results serve as a starting point and may require manual adjustment for optimal performance.'))
+                                ])
                             ]);
                             return fs.exec_direct('/etc/init.d/qosmate', ['auto_setup_noninteractive', gamingIp])
                                 .then(function(res) {
@@ -192,7 +195,7 @@ return view.extend({
                                         ui.showModal(_(''), [
                                             E('h2', { 'style': 'text-align:center; margin-bottom: 1em;' }, _('Auto Setup Results')),
                                             E('h3', { 'style': 'margin-bottom: 0.5em;' }, _('Speed Test Results')),
-                                            E('p', { 'style': 'color: orange; margin-bottom: 1em;' }, _('Note: These results are estimates. Fine-tuning may be required for best performance.')),
+                                            E('p', { 'style': 'color: orange; margin-bottom: 1em;' }, _('Note: Router-based speed tests may underestimate actual speeds. For best results, consider running tests from a LAN device and manually entering the values. These results serve as a starting point.')),
                                             E('div', { 'style': 'display: table; width: 100%;' }, [
                                                 E('div', { 'style': 'display: table-row;' }, [
                                                     E('div', { 'style': 'display: table-cell; padding: 5px; font-weight: bold;' }, _('WAN Interface')),
