@@ -83,8 +83,6 @@ return view.extend({
         o.rmempty = false;
 
         createOption('BWMAXRATIO', _('Bandwidth Max Ratio'), _('Maximum ratio between download and upload bandwidth'), _('Default: 20'), 'uinteger');
-        createOption('GAMEUP', _('Game Upload (kbps)'), _('Upload bandwidth reserved for gaming'), _('Default: 15% of UPRATE + 400'), 'uinteger');
-        createOption('GAMEDOWN', _('Game Download (kbps)'), _('Download bandwidth reserved for gaming'), _('Default: 15% of DOWNRATE + 400'), 'uinteger');
         createOption('ACKRATE', _('ACK Rate'), _('Rate for ACK packets'), _('Default: 5% of UPRATE'), 'uinteger');
 
         o = s.option(form.Flag, 'UDP_RATE_LIMIT_ENABLED', _('Enable UDP Rate Limit'), _('Enable UDP rate limiting'));
