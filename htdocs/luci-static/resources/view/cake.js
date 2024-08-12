@@ -91,31 +91,31 @@ return view.extend({
         o.default = 'ethernet';
 
         createOption('OVERHEAD', _('Overhead'), _('Set the overhead'), _('Default: based on preset'));
-        createOption('MPU', _('MPU'), _('Set the MPU (Maximum Packet Unit)'), _('Default: based on preset'));
+        createOption('MPU', _('MPU'), _('Minimum packet size CAKE will account for'), _('Default: based on preset'), 'uinteger');
         createOption('LINK_COMPENSATION', _('Link Compensation'), _('Set the link compensation'), _('Default: based on preset'));
         createOption('ETHER_VLAN_KEYWORD', _('Ether VLAN Keyword'), _('Set the Ether VLAN keyword'), _('Default: none'));
 
-        o = s.option(form.ListValue, 'PRIORITY_QUEUE_INGRESS', _('Priority Queue (Ingress)'), _('Select the priority queue type for ingress'));
+        o = s.option(form.ListValue, 'PRIORITY_QUEUE_INGRESS', _('Priority Queue (Ingress)'), _('Sets CAKE\'s diffserv mode for incoming traffic'));
         o.value('diffserv3', _('Diffserv 3-tier priority'));
         o.value('diffserv4', _('Diffserv 4-tier priority'));
         o.value('diffserv8', _('Diffserv 8-tier priority'));
         o.default = 'diffserv4';
 
-        o = s.option(form.ListValue, 'PRIORITY_QUEUE_EGRESS', _('Priority Queue (Egress)'), _('Select the priority queue type for egress'));
+        o = s.option(form.ListValue, 'PRIORITY_QUEUE_EGRESS', _('Priority Queue (Egress)'), _('Sets CAKE\'s diffserv mode for outgoing traffic'));
         o.value('diffserv3', _('Diffserv 3-tier priority'));
         o.value('diffserv4', _('Diffserv 4-tier priority'));
         o.value('diffserv8', _('Diffserv 8-tier priority'));
         o.default = 'diffserv4';
 
-        o = s.option(form.Flag, 'HOST_ISOLATION', _('Host Isolation'), _('Enable host isolation'));
+        o = s.option(form.Flag, 'HOST_ISOLATION', _('Host Isolation'), _('Applies fairness first by host, then by flow(dual-srchost/dual-dsthost)'));
         o.rmempty = false;
         o.default = '1';
 
-        o = s.option(form.Flag, 'NAT_INGRESS', _('NAT (Ingress)'), _('Enable NAT for ingress'));
+        o = s.option(form.Flag, 'NAT_INGRESS', _('NAT (Ingress)'), _('Enable NAT lookup for ingress'));
         o.rmempty = false;
         o.default = '1';
 
-        o = s.option(form.Flag, 'NAT_EGRESS', _('NAT (Egress)'), _('Enable NAT for egress'));
+        o = s.option(form.Flag, 'NAT_EGRESS', _('NAT (Egress)'), _('Enable NAT lookup for egress'));
         o.rmempty = false;
         o.default = '1';
 
