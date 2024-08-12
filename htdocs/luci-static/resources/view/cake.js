@@ -119,14 +119,6 @@ return view.extend({
         o.rmempty = false;
         o.default = '1';
 
-        o = s.option(form.Flag, 'WASH_INGRESS', _('Wash DSCP (Ingress)'), _('Wash DSCP for ingress'));
-        o.rmempty = false;
-        o.default = '0';
-
-        o = s.option(form.Flag, 'WASH_EGRESS', _('Wash DSCP (Egress)'), _('Wash DSCP for egress'));
-        o.rmempty = false;
-        o.default = '0';
-
         o = s.option(form.ListValue, 'ACK_FILTER_EGRESS', _('ACK Filter (Egress)'), 
             _('Set ACK filter for egress. Auto enables filtering if download/upload ratio ≥ 15.'));
         o.value('auto', _('Auto'));
