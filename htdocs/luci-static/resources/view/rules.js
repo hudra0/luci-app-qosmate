@@ -113,11 +113,62 @@ return view.extend({
         o = s.taboption('general', form.Value, 'name', _('Name'));
         o.rmempty = false;
 
-        o = s.taboption('general', form.ListValue, 'proto', _('Protocol'));
+        o = s.option(form.DummyValue, 'proto', _('Protocol'));
+        o.cfgvalue = function(section_id) {
+            var proto = uci.get('qosmate', section_id, 'proto');
+            if (Array.isArray(proto)) {
+                return proto.map(function(p) { return p.toUpperCase(); }).join(', ');
+            } else if (typeof proto === 'string') {
+                return proto.toUpperCase();
+            }
+            return _('Any');
+        };
+              
+        o = s.taboption('general', form.MultiValue, 'proto', _('Protocol'));
         o.value('tcp', _('TCP'));
         o.value('udp', _('UDP'));
         o.value('icmp', _('ICMP'));
         o.rmempty = true;
+        o.default = 'tcp udp';
+        o.modalonly = true;
+        
+        o.cfgvalue = function(section_id) {
+            var value = uci.get('qosmate', section_id, 'proto');
+            if (Array.isArray(value)) {
+                return value;
+            } else if (typeof value === 'string') {
+                return value.split(/\s+/);
+            }
+            return [];
+        };
+        
+        o.write = function(section_id, value) {
+            if (value && value.length) {
+                uci.set('qosmate', section_id, 'proto', value.join(' '));
+            } else {
+                uci.unset('qosmate', section_id, 'proto');
+            }
+        };
+        
+        o.validate = function(section_id, value) {
+            if (!value || value.length === 0) {
+                return true;
+            }
+            
+            var valid = ['tcp', 'udp', 'icmp'];
+            var toValidate = Array.isArray(value) ? value : value.split(/\s+/);
+            
+            for (var i = 0; i < toValidate.length; i++) {
+                if (valid.indexOf(toValidate[i]) === -1) {
+                    return _('Invalid protocol: %s').format(toValidate[i]);
+                }
+            }
+            return true;
+        };
+        
+        o.remove = function(section_id) {
+            uci.unset('qosmate', section_id, 'proto');
+        };
 
         o = s.taboption('general', form.DynamicList, 'src_ip', _('Source IP'));
         o.datatype = 'or(ip4addr, string)';
