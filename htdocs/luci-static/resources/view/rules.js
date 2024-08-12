@@ -69,7 +69,7 @@ return view.extend({
             E('h4', _('HFSC Mapping:')),
             E('table', { 'class': 'table' }, [
                 E('tr', { 'class': 'tr' }, [
-                    E('td', { 'class': 'td left', 'width': '50%' }, _('High Priority (1:11)')),
+                    E('td', { 'class': 'td left', 'width': '50%' }, _('High Priority [Realtime] (1:11)')),
                     E('td', { 'class': 'td left' }, 'EF, CS5, CS6, CS7')
                 ]),
                 E('tr', { 'class': 'tr' }, [
