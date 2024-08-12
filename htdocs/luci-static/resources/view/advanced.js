@@ -76,16 +76,16 @@ return view.extend({
         o = s.option(form.Flag, 'PRESERVE_CONFIG_FILES', _('Preserve Config Files'), _('Preserve configuration files during system upgrade'));
         o.rmempty = false;
 
-        o = s.option(form.Flag, 'WASHDSCPUP', _('Wash DSCP Upstream'), _('Wash DSCP values for upstream traffic'));
+        o = s.option(form.Flag, 'WASHDSCPUP', _('Wash DSCP Egress'), _('Sets DSCP to CS0 for outgoing packets after classification'));
         o.rmempty = false;
 
-        o = s.option(form.Flag, 'WASHDSCPDOWN', _('Wash DSCP Downstream'), _('Wash DSCP values for downstream traffic'));
+        o = s.option(form.Flag, 'WASHDSCPDOWN', _('Wash DSCP Ingress'), _('Sets DSCP to CS0 for incoming packets before classification'));
         o.rmempty = false;
 
-        createOption('BWMAXRATIO', _('Bandwidth Max Ratio'), _('Maximum ratio between download and upload bandwidth'), _('Default: 20'), 'uinteger');
-        createOption('ACKRATE', _('ACK Rate'), _('Rate for ACK packets'), _('Default: 5% of UPRATE'), 'uinteger');
+        createOption('BWMAXRATIO', _('Bandwidth Max Ratio'), _('Max download/upload ratio to prevent upstream congestion'), _('Default: 20'), 'uinteger');
+        createOption('ACKRATE', _('ACK Rate'), _('Sets rate limit for TCP ACKs, helps prevent ACK flooding / set to 0 to disable ACK rate limit'), _('Default: 5% of UPRATE'), 'uinteger');
 
-        o = s.option(form.Flag, 'UDP_RATE_LIMIT_ENABLED', _('Enable UDP Rate Limit'), _('Enable UDP rate limiting'));
+        o = s.option(form.Flag, 'UDP_RATE_LIMIT_ENABLED', _('Enable UDP Rate Limit'), _('Downgrades UDP traffic exceeding 450 pps to lower priority'));
         o.rmempty = false;
 
         createOption('UDPBULKPORT', _('UDP Bulk Ports'), _('Specify UDP ports for bulk traffic'), _('Default: none'));
