@@ -81,7 +81,7 @@ return view.extend({
 
         createOption('OH', _('Overhead'), _('Set the overhead'), _('Default: 44'), 'uinteger');
 
-        o = s.option(form.ListValue, 'gameqdisc', _('Game Queue Discipline'), _('Select the queueing discipline for game traffic'));
+        o = s.option(form.ListValue, 'gameqdisc', _('Game Queue Discipline'), _('Queueing method for traffic classified as realtime'));
         o.value('pfifo', _('PFIFO'));
         o.value('fq_codel', _('FQ_CODEL'));
         o.value('bfifo', _('BFIFO'));
@@ -89,8 +89,8 @@ return view.extend({
         o.value('netem', _('NETEM'));
         o.default = 'pfifo';
 
-        createOption('GAMEUP', _('Game Upload (kbps)'), _('Upload bandwidth reserved for gaming'), _('Default: 15% of UPRATE + 400'), 'uinteger');
-        createOption('GAMEDOWN', _('Game Download (kbps)'), _('Download bandwidth reserved for gaming'), _('Default: 15% of DOWNRATE + 400'), 'uinteger');
+        createOption('GAMEUP', _('Game Upload (kbps)'), _('Bandwidth reserved for realtime upload traffic'), _('Default: 15% of UPRATE + 400'), 'uinteger');
+        createOption('GAMEDOWN', _('Game Download (kbps)'), _('Bandwidth reserved for realtime download traffic'), _('Default: 15% of DOWNRATE + 400'), 'uinteger');
 
         o = s.option(form.ListValue, 'nongameqdisc', _('Non-Game Queue Discipline'), _('Select the queueing discipline for non-game traffic'));
         o.value('fq_codel', _('FQ_CODEL'));
@@ -98,9 +98,9 @@ return view.extend({
         o.default = 'fq_codel';
 
         createOption('nongameqdiscoptions', _('Non-Game QDisc Options'), _('Cake options for non-game queueing discipline'), _('Default: besteffort ack-filter'));
-        createOption('MAXDEL', _('Max Delay (ms)'), _('Maximum delay in milliseconds'), _('Default: 24'), 'uinteger');
-        createOption('PFIFOMIN', _('PFIFO Min'), _('Minimum PFIFO value'), _('Default: 5'), 'uinteger');
-        createOption('PACKETSIZE', _('Packet Size'), _('Average packet size'), _('Default: 450'), 'uinteger');
+        createOption('MAXDEL', _('Max Delay (ms)'), _('Target max delay for realtime packets after burst (pfifo, bfifo, red)'), _('Default: 24'), 'uinteger');
+        createOption('PFIFOMIN', _('PFIFO Min'), _('Minimum packet count for PFIFO queue'), _('Default: 5'), 'uinteger');
+        createOption('PACKETSIZE', _('Avg Packet Size (B)'), _('Used with PFIFOMIN to calculate PFIFO limit'), _('Default: 450'), 'uinteger');
         createOption('netemdelayms', _('NETEM Delay (ms)'), _('NETEM delay in milliseconds'), _('Default: 30'), 'uinteger');
         createOption('netemjitterms', _('NETEM Jitter (ms)'), _('NETEM jitter in milliseconds'), _('Default: 7'), 'uinteger');
         
