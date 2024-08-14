@@ -5,7 +5,7 @@ This repository uses the central README from the [qosmate repository](https://gi
 
 
 
-Install one-liner:
+#### Install one-liner:
 
 ```
 mkdir -p /www/luci-static/resources/view/qosmate /usr/share/luci/menu.d /usr/share/rpcd/acl.d && \
