@@ -1,5 +1,10 @@
 # luci-app-qosmate
 
+This repository uses the central README from the [qosmate repository](https://github.com/hudra0/qosmate).
+
+
+
+
 Install one-liner:
 
 ```
