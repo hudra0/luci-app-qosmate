@@ -29,20 +29,26 @@ function fetchCurrentVersion() {
 }
 
 function fetchLatestVersion() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         var xhr = new XMLHttpRequest();
         xhr.open('GET', 'https://raw.githubusercontent.com/hudra0/qosmate/main/etc/qosmate.sh', true);
         xhr.onload = function() {
             if (xhr.status === 200) {
                 var match = xhr.responseText.match(/^VERSION="(.+)"/m);
-                latestVersion = match ? match[1] : 'Unknown';
-                resolve(latestVersion);
+                latestVersion = match ? match[1] : 'Unable to fetch';
             } else {
-                reject('Failed to fetch latest version');
+                latestVersion = 'Unable to fetch';
             }
+            resolve(latestVersion);
         };
         xhr.onerror = function() {
-            reject('Network error');
+            latestVersion = 'Unable to fetch';
+            resolve(latestVersion);
+        };
+        xhr.timeout = 2000; // 2 second timeout
+        xhr.ontimeout = function() {
+            latestVersion = 'Unable to fetch';
+            resolve(latestVersion);
         };
         xhr.send();
     });
@@ -85,9 +91,12 @@ return view.extend({
     load: function() {
         return Promise.all([
             uci.load('qosmate'),
-            fetchCurrentVersion(),
+            fetchCurrentVersion().catch(() => 'Unable to fetch'),
             fetchLatestVersion()
-        ]);
+        ]).catch(error => {
+            console.error('Error in load function:', error);
+            return [null, 'Unable to fetch', 'Unable to fetch'];
+        });
     },
 
     render: function() {
@@ -119,7 +128,10 @@ return view.extend({
                         'class': buttonStyle + ' cbi-button-apply',
                         'click': ui.createHandlerFn(this, function() {
                             return fs.exec_direct('/etc/init.d/qosmate', ['start'])
-                                .then(function() { ui.addNotification(null, E('p', _('QoSmate started')), 'success'); })
+                                .then(function() {
+                                    ui.addNotification(null, E('p', _('QoSmate started')), 'success');
+                                    window.setTimeout(function() { location.reload(); }, 1000);
+                                })
                                 .catch(function(e) { ui.addNotification(null, E('p', _('Failed to start QoSmate: ') + e), 'error'); });
                         })
                     }, _('Start')),
@@ -128,7 +140,10 @@ return view.extend({
                         'class': buttonStyle + ' cbi-button-neutral',
                         'click': ui.createHandlerFn(this, function() {
                             return fs.exec_direct('/etc/init.d/qosmate', ['restart'])
-                                .then(function() { ui.addNotification(null, E('p', _('QoSmate restarted')), 'success'); })
+                                .then(function() {
+                                    ui.addNotification(null, E('p', _('QoSmate restarted')), 'success');
+                                    window.setTimeout(function() { location.reload(); }, 1000);
+                                })
                                 .catch(function(e) { ui.addNotification(null, E('p', _('Failed to restart QoSmate: ') + e), 'error'); });
                         })
                     }, _('Restart')),
@@ -137,7 +152,10 @@ return view.extend({
                         'class': buttonStyle + ' cbi-button-reset',
                         'click': ui.createHandlerFn(this, function() {
                             return fs.exec_direct('/etc/init.d/qosmate', ['stop'])
-                                .then(function() { ui.addNotification(null, E('p', _('QoSmate stopped')), 'success'); })
+                                .then(function() {
+                                    ui.addNotification(null, E('p', _('QoSmate stopped')), 'success');
+                                    window.setTimeout(function() { location.reload(); }, 1000);
+                                })
                                 .catch(function(e) { ui.addNotification(null, E('p', _('Failed to stop QoSmate: ') + e), 'error'); });
                         })
                     }, _('Stop'))
@@ -283,7 +301,9 @@ return view.extend({
         o = s.option(form.DummyValue, '_version', _('Version Information'));
         o.rawhtml = true;
         o.render = function(section_id) {
-            var updateAvailable = currentVersion !== latestVersion && currentVersion !== 'Unknown' && latestVersion !== 'Unknown';
+            var updateAvailable = currentVersion !== latestVersion && 
+                                currentVersion !== 'Unable to fetch' && 
+                                latestVersion !== 'Unable to fetch';
 
             var html = '<div>' +
                     '<strong>' + _('Current Version') + ':</strong> ' + currentVersion + '<br>' +
@@ -291,7 +311,7 @@ return view.extend({
 
             if (updateAvailable) {
                 html += '<br><span style="color: red;">' + _('A new version is available!') + '</span><br>';
-            } else if (currentVersion !== 'Unknown' && latestVersion !== 'Unknown') {
+            } else if (currentVersion !== 'Unable to fetch' && latestVersion !== 'Unable to fetch') {
                 html += '<br><span style="color: green;">' + _('QoSmate is up to date.') + '</span>';
             } else {
                 html += '<br><span style="color: orange;">' + _('Unable to check for updates.') + '</span>';
