@@ -7,6 +7,8 @@
 'require fs';
 'require poll';
 
+const UI_VERSION = '1.0.0';
+
 var callInitAction = rpc.declare({
     object: 'luci',
     method: 'setInitAction',
