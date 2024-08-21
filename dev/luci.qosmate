@@ -1,0 +1,86 @@
+#!/usr/bin/env lua
+
+local jsonc = require "luci.jsonc"
+
+local function parse_connection(line)
+    local conn = {}
+    conn.layer3, conn.layer4, conn.protocol, conn.timeout = line:match("(%w+)%s+(%d+)%s+(%w+)%s+(%d+)")
+    if not (conn.layer3 and conn.layer4 and conn.protocol and conn.timeout) then
+        return nil
+    end
+
+    for k, v in line:gmatch("(%w+)=(%S+)") do
+        conn[k] = v
+    end
+
+    if conn.protocol == "icmp" then
+        conn.src, conn.dst = line:match("src=(%S+)%s+dst=(%S+)")
+        conn.type, conn.code = line:match("type=(%d+)%s+code=(%d+)")
+        conn.sport, conn.dport = conn.type, conn.code
+    elseif not (conn.src and conn.dst and conn.sport and conn.dport) then
+        return nil
+    end
+
+    conn.bytes = tonumber(conn.bytes) or 0
+    conn.packets = tonumber(conn.packets) or 0
+
+    conn.dscp = math.floor(conn.mark)
+    conn.zone = tonumber(conn.zone) or 0
+    conn.use = tonumber(conn.use) or 0
+    conn.timeout = tonumber(conn.timeout) or 0
+
+    if line:match("%[ASSURED%]") then
+        conn.state = "ASSURED"
+    elseif line:match("%[UNREPLIED%]") then
+        conn.state = "UNREPLIED"
+    else
+        conn.state = "UNKNOWN"
+    end
+
+    return conn
+end
+
+local function get_connections()
+    local connections = {}
+    local f = io.open("/proc/net/nf_conntrack", "r")
+    if not f then
+        return connections
+    end
+
+    for line in f:lines() do
+        local conn = parse_connection(line)
+        if conn then
+            local key = string.format("%s:%s:%s:%s:%s:%s", conn.layer3, conn.protocol, conn.src, conn.sport, conn.dst, conn.dport)
+            connections[key] = conn
+        end
+    end
+    f:close()
+    
+    return connections
+end
+
+local methods = {
+    getConntrackDSCP = {
+        call = function()
+            local connections = get_connections()
+            return {result = jsonc.stringify({connections = connections})}
+        end
+    }
+}
+
+if arg[1] == "list" then
+    local rv = {}
+    for k, v in pairs(methods) do rv[k] = v.args or {} end
+    print((jsonc.stringify(rv):gsub(":%[%]", ":{}")))
+elseif arg[1] == "call" then
+    local args = jsonc.parse(io.stdin:read("*a"))
+    local method = methods[arg[2]]
+    if method then
+        local result = method.call(args)
+        print(result.result)
+        os.exit(result.code or 0)
+    else
+        print(jsonc.stringify({error = "Method not found"}))
+        os.exit(1)
+    end
+end
