@@ -104,60 +104,80 @@ return view.extend({
             while (table.rows.length > 1) {
                 table.deleteRow(1);
             }
-
+        
             var currentTime = Date.now() / 1000;
             var timeDiff = currentTime - view.lastUpdateTime;
             view.lastUpdateTime = currentTime;
-
+        
             connections.forEach(function(conn) {
                 var key = conn.layer3 + conn.protocol + conn.src + conn.sport + conn.dst + conn.dport;
                 var lastConn = view.lastData[key];
                 
                 if (!view.connectionHistory[key]) {
                     view.connectionHistory[key] = {
-                        ppsHistory: [],
-                        bpsHistory: [],
-                        lastPackets: conn.packets,
-                        lastBytes: conn.bytes,
+                        inPpsHistory: [],
+                        outPpsHistory: [],
+                        inBpsHistory: [],
+                        outBpsHistory: [],
+                        lastInPackets: conn.in_packets,
+                        lastOutPackets: conn.out_packets,
+                        lastInBytes: conn.in_bytes,
+                        lastOutBytes: conn.out_bytes,
                         lastTimestamp: currentTime
                     };
                 }
-
+        
                 var history = view.connectionHistory[key];
-                var instantPps = 0;
-                var instantBps = 0;
-
+                var instantInPps = 0, instantOutPps = 0, instantInBps = 0, instantOutBps = 0;
+        
                 if (lastConn && timeDiff > 0) {
-                    var packetDiff = Math.max(0, conn.packets - history.lastPackets);
-                    var bytesDiff = Math.max(0, conn.bytes - history.lastBytes);
-                    instantPps = Math.round(packetDiff / timeDiff);
-                    instantBps = Math.round(bytesDiff / timeDiff);
-
-                    history.ppsHistory.push(instantPps);
-                    history.bpsHistory.push(instantBps);
-
-                    if (history.ppsHistory.length > view.historyLength) {
-                        history.ppsHistory.shift();
-                        history.bpsHistory.shift();
+                    var inPacketDiff = Math.max(0, conn.in_packets - history.lastInPackets);
+                    var outPacketDiff = Math.max(0, conn.out_packets - history.lastOutPackets);
+                    var inBytesDiff = Math.max(0, conn.in_bytes - history.lastInBytes);
+                    var outBytesDiff = Math.max(0, conn.out_bytes - history.lastOutBytes);
+                    
+                    instantInPps = Math.round(inPacketDiff / timeDiff);
+                    instantOutPps = Math.round(outPacketDiff / timeDiff);
+                    instantInBps = Math.round(inBytesDiff / timeDiff);
+                    instantOutBps = Math.round(outBytesDiff / timeDiff);
+        
+                    history.inPpsHistory.push(instantInPps);
+                    history.outPpsHistory.push(instantOutPps);
+                    history.inBpsHistory.push(instantInBps);
+                    history.outBpsHistory.push(instantOutBps);
+        
+                    if (history.inPpsHistory.length > view.historyLength) {
+                        history.inPpsHistory.shift();
+                        history.outPpsHistory.shift();
+                        history.inBpsHistory.shift();
+                        history.outBpsHistory.shift();
                     }
                 }
-
-                history.lastPackets = conn.packets;
-                history.lastBytes = conn.bytes;
+        
+                history.lastInPackets = conn.in_packets;
+                history.lastOutPackets = conn.out_packets;
+                history.lastInBytes = conn.in_bytes;
+                history.lastOutBytes = conn.out_bytes;
                 history.lastTimestamp = currentTime;
-
-                var avgPps = Math.round(history.ppsHistory.reduce((a, b) => a + b, 0) / history.ppsHistory.length) || 0;
-                var avgBps = Math.round(history.bpsHistory.reduce((a, b) => a + b, 0) / history.bpsHistory.length) || 0;
-                var maxPps = Math.max(...history.ppsHistory, 0);
-
-                conn.avgPps = avgPps;
-                conn.maxPps = maxPps;
-                conn.avgBps = avgBps;
+        
+                var avgInPps = Math.round(history.inPpsHistory.reduce((a, b) => a + b, 0) / history.inPpsHistory.length) || 0;
+                var avgOutPps = Math.round(history.outPpsHistory.reduce((a, b) => a + b, 0) / history.outPpsHistory.length) || 0;
+                var avgInBps = Math.round(history.inBpsHistory.reduce((a, b) => a + b, 0) / history.inBpsHistory.length) || 0;
+                var avgOutBps = Math.round(history.outBpsHistory.reduce((a, b) => a + b, 0) / history.outBpsHistory.length) || 0;
+                var maxInPps = Math.max(...history.inPpsHistory, 0);
+                var maxOutPps = Math.max(...history.outPpsHistory, 0);
+        
+                conn.avgInPps = avgInPps;
+                conn.avgOutPps = avgOutPps;
+                conn.maxInPps = maxInPps;
+                conn.maxOutPps = maxOutPps;
+                conn.avgInBps = avgInBps;
+                conn.avgOutBps = avgOutBps;
                 view.lastData[key] = conn;
             });
-
+        
             connections.sort(view.sortFunction.bind(view));
-
+        
             connections.forEach(function(conn) {
                 var srcFull = conn.src + ':' + (conn.sport || '-');
                 var dstFull = conn.dst + ':' + (conn.dport || '-');
@@ -172,16 +192,49 @@ return view.extend({
                     return;
                 }
 
+                var srcFull = conn.src + (conn.sport !== "-" ? ':' + conn.sport : '');
+                var dstFull = conn.dst + (conn.dport !== "-" ? ':' + conn.dport : '');                
+
                 table.appendChild(E('tr', { 'class': 'tr' }, [
                     E('td', { 'class': 'td' }, conn.protocol.toUpperCase()),
                     E('td', { 'class': 'td' }, srcFull),
                     E('td', { 'class': 'td' }, dstFull),
-                    E('td', { 'class': 'td' }, dscpString), 
-                    E('td', { 'class': 'td' }, formatSize(conn.bytes)),
-                    E('td', { 'class': 'td' }, conn.packets),
-                    E('td', { 'class': 'td' }, conn.avgPps),
-                    E('td', { 'class': 'td' }, conn.maxPps),
-                    E('td', { 'class': 'td' }, convertToKbps(conn.avgBps))
+                    E('td', { 'class': 'td' }, dscpString),
+                    E('td', { 'class': 'td' }, 
+                        E('div', {}, [
+                            E('span', {}, _('In: ') + formatSize(conn.in_bytes)),
+                            E('br'),
+                            E('span', {}, _('Out: ') + formatSize(conn.out_bytes))
+                        ])
+                    ),
+                    E('td', { 'class': 'td' }, 
+                        E('div', {}, [
+                            E('span', {}, _('In: ') + conn.in_packets),
+                            E('br'),
+                            E('span', {}, _('Out: ') + conn.out_packets)
+                        ])
+                    ),
+                    E('td', { 'class': 'td' }, 
+                        E('div', {}, [
+                            E('span', {}, _('In: ') + conn.avgInPps),
+                            E('br'),
+                            E('span', {}, _('Out: ') + conn.avgOutPps)
+                        ])
+                    ),
+                    E('td', { 'class': 'td' }, 
+                        E('div', {}, [
+                            E('span', {}, _('In: ') + conn.maxInPps),
+                            E('br'),
+                            E('span', {}, _('Out: ') + conn.maxOutPps)
+                        ])
+                    ),
+                    E('td', { 'class': 'td' }, 
+                        E('div', {}, [
+                            E('span', {}, _('In: ') + convertToKbps(conn.avgInBps)),
+                            E('br'),
+                            E('span', {}, _('Out: ') + convertToKbps(conn.avgOutBps))
+                        ])
+                    )
                 ]));
             });
             view.updateSortIndicators();            
@@ -238,19 +291,37 @@ return view.extend({
     },
 
     sortFunction: function(a, b) {
-        var aValue = a[this.sortColumn];
-        var bValue = b[this.sortColumn];
+        var aValue, bValue;
+        
+        switch(this.sortColumn) {
+            case 'bytes':
+                aValue = (a.in_bytes || 0) + (a.out_bytes || 0);
+                bValue = (b.in_bytes || 0) + (b.out_bytes || 0);
+                break;
+            case 'packets':
+                aValue = (a.in_packets || 0) + (a.out_packets || 0);
+                bValue = (b.in_packets || 0) + (b.out_packets || 0);
+                break;
+            case 'avgPps':
+                aValue = (a.avgInPps || 0) + (a.avgOutPps || 0);
+                bValue = (b.avgInPps || 0) + (b.avgOutPps || 0);
+                break;
+            case 'maxPps':
+                aValue = Math.max(a.maxInPps || 0, a.maxOutPps || 0);
+                bValue = Math.max(b.maxInPps || 0, b.maxOutPps || 0);
+                break;
+            case 'avgBps':
+                aValue = (a.avgInBps || 0) + (a.avgOutBps || 0);
+                bValue = (b.avgInBps || 0) + (b.avgOutBps || 0);
+                break;
+            default:
+                aValue = a[this.sortColumn];
+                bValue = b[this.sortColumn];
+        }
         
         if (typeof aValue === 'string') aValue = aValue.toLowerCase();
         if (typeof bValue === 'string') bValue = bValue.toLowerCase();
-
-        if (this.sortColumn === 'bytes' || this.sortColumn === 'packets' || 
-            this.sortColumn === 'avgPps' || this.sortColumn === 'maxPps' || 
-            this.sortColumn === 'avgBps') {
-            aValue = Number(aValue);
-            bValue = Number(bValue);
-        }
-
+    
         if (aValue < bValue) return this.sortDescending ? 1 : -1;
         if (aValue > bValue) return this.sortDescending ? -1 : 1;
         return 0;
