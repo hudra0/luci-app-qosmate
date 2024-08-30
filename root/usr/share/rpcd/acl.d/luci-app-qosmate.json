@@ -14,7 +14,8 @@
                 "/etc/hotplug.d/iface/13-qosmateHotplug": [ "read" ],
                 "/etc/config/qosmate": [ "read" ],   
                 "/tmp/qosmate_auto_setup_output.txt": [ "read" ],
-                "/etc/qosmate.d/custom_rules.nft": [ "read" ]                                                          
+                "/etc/qosmate.d/custom_rules.nft": [ "read" ],
+                "/tmp/qosmate_custom_rules_validation.txt": [ "read" ]                                                                          
             }
         },
         "write": {
