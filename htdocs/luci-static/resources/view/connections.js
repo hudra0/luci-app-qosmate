@@ -261,13 +261,77 @@ return view.extend({
                 margin-left: 5px;
                 vertical-align: middle;
             }
+            .table-wrapper {
+                overflow-x: auto;
+                max-width: 100%;
+            }
+            .cbi-section-table {
+                min-width: 100%;
+                font-size: 0.8rem;
+            }
+            .cbi-section-table td, .cbi-section-table th {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                max-width: 150px;
+                padding: 0.3rem;
+            }
+            @media screen and (max-width: 600px) {
+                .cbi-section-table td:nth-child(5),
+                .cbi-section-table th:nth-child(5),
+                .cbi-section-table td:nth-child(6),
+                .cbi-section-table th:nth-child(6) {
+                    display: none;
+                }
+            }
+            /* Styles for different zoom levels */
+            .cbi-section-table.zoom-100 { font-size: 1rem !important; }
+            .cbi-section-table.zoom-90 { font-size: 0.9rem !important; }
+            .cbi-section-table.zoom-80 { font-size: 0.8rem !important; }
+            .cbi-section-table.zoom-70 { font-size: 0.7rem !important; }
+            .cbi-section-table.zoom-60 { font-size: 0.6rem !important; }
+            .cbi-section-table.zoom-50 { font-size: 0.5rem !important; }            
+
+            /* Adjust padding for zoomed states */
+            .cbi-section-table[class*="zoom-"] td,
+            .cbi-section-table[class*="zoom-"] th {
+                padding: 0.2rem !important;
+            }
+
+            /* Style for the zoom select */
+            .zoom-select {
+                margin-left: 10px;
+                padding: 2px 5px;
+            }
         `);
+
+        // Create zoom select
+        var zoomSelect = E('select', {
+            'class': 'zoom-select',
+            'change': function(ev) {
+                var table = document.getElementById('qosmate_connections');
+                // Remove all zoom classes
+                table.classList.remove('zoom-100', 'zoom-90', 'zoom-80', 'zoom-70', 'zoom-60', 'zoom-50');
+                // Add selected zoom class
+                table.classList.add(ev.target.value);
+            }
+        }, [
+            E('option', { 'value': 'zoom-100' }, _('100%')),
+            E('option', { 'value': 'zoom-90' }, _('90%')),
+            E('option', { 'value': 'zoom-80' }, _('80%')),
+            E('option', { 'value': 'zoom-70' }, _('70%')),
+            E('option', { 'value': 'zoom-60' }, _('60%')),
+            E('option', { 'value': 'zoom-50' }, _('50%'))            
+        ]);        
         
         return E('div', { 'class': 'cbi-map' }, [
             style,
             E('h2', _('QoSmate Connections')),
             E('div', { 'style': 'margin-bottom: 10px;' }, [
-                filterInput
+                filterInput,
+                ' ',  // Space between filter input and zoom select
+                E('span', _('Zoom:')),
+                zoomSelect
             ]),
             E('div', { 'class': 'cbi-section' }, [
                 E('div', { 'class': 'cbi-section-node' }, [
