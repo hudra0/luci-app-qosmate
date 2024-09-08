@@ -54,6 +54,50 @@ return view.extend({
         s.anonymous = true;
         s.addremove = false;
 
+        o = s.option(form.Button, '_erase', _('Erase Rules'));
+        o.inputstyle = 'remove';
+        o.inputtitle = _('Erase Custom Rules');
+        o.onclick = function(ev) {
+            return ui.showModal(_('Erase Custom Rules'), [
+                E('p', _('Are you sure you want to erase all custom rules? This action cannot be undone.')),
+                E('div', { 'class': 'right' }, [
+                    E('button', {
+                        'class': 'btn',
+                        'click': ui.hideModal
+                    }, _('Cancel')),
+                    ' ',
+                    E('button', {
+                        'class': 'btn cbi-button-negative',
+                        'click': ui.createHandlerFn(this, function() {
+                            var textarea = document.querySelector('textarea[name="cbid.qosmate.custom_rules.custom_rules"]');
+                            if (textarea) {
+                                textarea.value = '';
+                            }
+                            
+                            return fs.remove('/etc/qosmate.d/custom_rules.nft')
+                                .then(() => {
+                                    return ui.changes.apply();
+                                })
+                                .then(() => {
+                                    return callInitAction('qosmate', 'restart');
+                                })
+                                .then(() => {
+                                    ui.hideModal();
+                                    ui.addNotification(null, E('p', _('Custom rules have been erased and changes applied.')), 'success');
+                                    window.setTimeout(function() {
+                                        window.location.reload();
+                                    }, 2000);
+                                })
+                                .catch((err) => {
+                                    ui.hideModal();
+                                    ui.addNotification(null, E('p', _('Failed to erase custom rules or apply changes: ') + err.message), 'error');
+                                });
+                        })
+                    }, _('Erase'))
+                ])
+            ]);
+        };
+
         o = s.option(form.TextValue, 'custom_rules', _('Custom nftables Rules'));
         o.rows = 20;
         o.wrap = 'off';
