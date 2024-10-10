@@ -6,8 +6,9 @@
 'require rpc';
 'require fs';
 'require poll';
+'require tools.widgets as widgets';
 
-const UI_VERSION = '1.0.5';
+const UI_VERSION = '1.0.6';
 
 var callInitAction = rpc.declare({
     object: 'luci',
@@ -340,7 +341,12 @@ return view.extend({
             return opt;
         }
         
-        createOption('WAN', _('WAN Interface'), _('Select the WAN interface'), _('Default: eth1'));
+        var wanInterface = uci.get('qosmate', 'settings', 'WAN') || ''; // Get the current WAN interface from config
+        o = s.option(widgets.DeviceSelect, 'WAN', _('WAN Interface'), _('Select the WAN interface'));
+        o.rmempty = false;
+        o.editable = true; // Allow manual entry
+        o.default = wanInterface;
+
         createOption('DOWNRATE', _('Download Rate (kbps)'), _('Set the download rate in kbps'), _('Default: 90000'), 'uinteger');
         createOption('UPRATE', _('Upload Rate (kbps)'), _('Set the upload rate in kbps'), _('Default: 45000'), 'uinteger');
         
