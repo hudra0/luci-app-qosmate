@@ -4,6 +4,7 @@
 'require uci';
 'require form';
 'require rpc';
+'require fs';
 'require tools.widgets as widgets';
 
 var callInitAction = rpc.declare({
@@ -14,41 +15,27 @@ var callInitAction = rpc.declare({
 });
 
 return view.extend({
-    handleSaveApply: function(ev) {
-        return this.handleSave(ev)
-            .then(() => {
-                return ui.changes.apply();
-            })
-            .then(() => {
-                return uci.load('qosmate');
-            })
-            .then(() => {
-                return uci.get_first('qosmate', 'global', 'enabled');
-            })
-            .then(enabled => {
-                if (enabled === '0') {
-                    return callInitAction('qosmate', 'stop');
-                } else {
-                    // Prüfen, ob es Änderungen gab
-                    return uci.changes().then(changes => {
-                        if (Object.keys(changes).length > 0) {
-                            // Es gab Änderungen, also neu starten
-                            return callInitAction('qosmate', 'restart');
-                        }
-                        // Keine Änderungen, nichts tun
-                        return Promise.resolve();
-                    });
-                }
-            })
-            .then(() => {
-                ui.hideModal();
-                window.location.reload();
-            })
-            .catch((err) => {
-                ui.hideModal();
-                ui.addNotification(null, E('p', _('Failed to save settings or update QoSmate service: ') + err.message));
-            });
-    },
+handleSaveApply: function(ev) {
+    return this.handleSave(ev)
+        .then(() => ui.changes.apply())
+        .then(() => uci.load('qosmate'))
+        .then(() => uci.get_first('qosmate', 'global', 'enabled'))
+        .then(enabled => {
+            if (enabled === '0') {
+                return fs.exec_direct('/etc/init.d/qosmate', ['stop']);
+            } else {
+                return fs.exec_direct('/etc/init.d/qosmate', ['restart']);
+            }
+        })
+        .then(() => {
+            ui.hideModal();
+            window.location.reload();
+        })
+        .catch(err => {
+            ui.hideModal();
+            ui.addNotification(null, E('p', _('Failed to save settings or update QoSmate service: ') + err.message));
+        });
+},
 
     render: function() {
         var m, s, o;
