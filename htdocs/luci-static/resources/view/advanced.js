@@ -57,6 +57,13 @@ return view.extend({
                     return true;
                 };
             }
+            if (datatype === 'integer') {
+                opt.validate = function(section_id, value) {
+                    if (value === '' || value === null) return true;
+                    if (!/^-?\d+$/.test(value)) return _('Must be an integer or empty');
+                    return true;
+                };
+            }
             return opt;
         }
 
@@ -83,6 +90,14 @@ return view.extend({
         createOption('TCPBULKPORT', _('TCP Bulk Ports'), _('Specify TCP ports for bulk traffic'), _('Default: none'));
 
         createOption('MSS', _('TCP MSS'), _('Maximum Segment Size for TCP connections. This setting is only active when the upload or download bandwidth is less than 3000 kbit/s. Leave empty to use the default value.'), _('Default: 536'), 'uinteger');
+
+        o = s.option(form.ListValue, 'NFT_HOOK', _('nftables Hook'), _('Select the nftables hook point for the dscptag chain'));
+        o.value('forward', _('forward'));
+        o.value('postrouting', _('postrouting'));
+        o.default = 'forward';
+        o.rmempty = false;
+
+        createOption('NFT_PRIORITY', _('nftables Priority'), _('Set the priority for the nftables chain. Lower values are processed earlier. Default is 0 | mangle is -150.'), _('0'), 'integer');
 
         return m.render();
     }
