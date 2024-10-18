@@ -1,0 +1,3 @@
+[submodule "qosmate"]
+	path = qosmate
+	url = https://github.com/hudra0/qosmate
