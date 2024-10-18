@@ -1,0 +1,65 @@
+name: Build Packages
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - v*
+
+jobs:
+  build:
+    name: Build ${{ matrix.arch }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch:
+          - x86_64
+          - aarch64_generic
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Build
+        uses: openwrt/gh-action-sdk@main
+        env:
+          ARCH: ${{ matrix.arch }}
+          FEEDNAME: qosmate
+          PACKAGES: luci-app-qosmate
+          NO_REFRESH_CHECK: true
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: qosmate_${{ matrix.arch }}
+          path: bin/packages/${{ matrix.arch }}/qosmate/*.ipk
+
+      - name: Get version and Compress
+        run: |
+          version=$(wget -qO- https://github.com/hudra0/qosmate/raw/main/etc/qosmate.sh | grep 'VERSION=' | sed -n 's/.*VERSION="\([^"]*\)".*/\1/p')
+          echo "latest_version=v$version" >>$GITHUB_ENV
+          luci_version=$(wget -qO- https://github.com/hudra0/luci-app-qosmate/raw/main/Makefile | grep 'PKG_VERSION' | sed -n 's/.*PKG_VERSION:=\([0-9.]*\).*/\1/p')
+          echo "latest_luciversion=v$luci_version" >>$GITHUB_ENV
+          tar -c -z -f qosmate_${{ matrix.arch }}.tar.gz -C bin/packages/${{ matrix.arch }}/qosmate .
+
+      - name: Create and Upload Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          release_name: qosmate-${{ env.latest_version }}
+          body: luci-app-qosmate-${{ env.latest_luciversion }}
+          tag: ${{ env.latest_version }}
+          file_glob: true
+          overwrite: true
+          file: qosmate_${{ matrix.arch }}.tar.gz
+
+      - name: Delete workflow runs
+        uses: Mattraks/delete-workflow-runs@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          retain_days: 0
+          keep_minimum_runs: 2
