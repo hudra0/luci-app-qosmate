@@ -14,22 +14,6 @@ var callInitAction = rpc.declare({
 });
 
 return view.extend({
-    handleSaveApply: function(ev) {
-        return this.handleSave(ev)
-            .then(() => {
-                return ui.changes.apply();
-            })
-            .then(() => {
-                return callInitAction('qosmate', 'restart');
-            })
-            .then(() => {
-                ui.addNotification(null, E('p', _('Custom rules have been saved and applied.')), 'success');
-            })
-            .catch((err) => {
-                ui.addNotification(null, E('p', _('Failed to save settings or restart QoSmate: ') + err.message), 'error');
-            });
-    },
-
     load: function() {
         return Promise.all([
             fs.read('/etc/qosmate.d/custom_rules.nft')
@@ -144,20 +128,20 @@ ${formvalue.trim()}
         o.onclick = function(ev) {
             var map = this.map;
             var section_id = 'custom_rules'; // Assuming this is the correct section_id
-        
+
             var customRulesTextarea = document.getElementById('widget.cbid.qosmate.' + section_id + '.custom_rules');
             if (!customRulesTextarea) {
                 ui.addNotification(null, E('p', _('Error: Could not find custom rules textarea')), 'error');
                 return;
             }
-        
+
             var currentRules = customRulesTextarea.value;
             var fullContent = `table inet qosmate_custom {\n${currentRules.trim()}\n}`;
-        
+
             ui.showModal(_('Validating Rules'), [
                 E('p', { 'class': 'spinning' }, _('Please wait while the rules are being validated...'))
             ]);
-        
+
             return fs.write('/etc/qosmate.d/custom_rules.nft', fullContent)
                 .then(() => {
                     return fs.exec('/etc/init.d/qosmate', ['validate_custom_rules']);
@@ -179,7 +163,7 @@ ${formvalue.trim()}
                     ui.showModal(_('Finalizing Validation'), [
                         E('p', { 'class': 'spinning' }, _('Finalizing validation results, please wait...'))
                     ]);
-                    
+
                     setTimeout(function() {
                         window.location.reload();
                     }, 2000);
@@ -191,7 +175,7 @@ ${formvalue.trim()}
                     ui.showModal(_('Finalizing Validation'), [
                         E('p', { 'class': 'spinning' }, _('Finalizing validation results, please wait...'))
                     ]);
-                    
+
                     setTimeout(function() {
                         window.location.reload();
                     }, 2000);

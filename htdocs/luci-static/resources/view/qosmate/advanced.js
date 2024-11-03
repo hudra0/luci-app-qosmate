@@ -13,29 +13,7 @@ var callInitAction = rpc.declare({
     expect: { result: false }
 });
 
-return view.extend({
-    handleSaveApply: function(ev) {
-        return this.handleSave(ev)
-            .then(() => ui.changes.apply())
-            .then(() => uci.load('qosmate'))
-            .then(() => uci.get_first('qosmate', 'global', 'enabled'))
-            .then(enabled => {
-                if (enabled === '0') {
-                    return fs.exec_direct('/etc/init.d/qosmate', ['stop']);
-                } else {
-                    return fs.exec_direct('/etc/init.d/qosmate', ['restart']);
-                }
-            })
-            .then(() => {
-                ui.hideModal();
-                window.location.reload();
-            })
-            .catch(err => {
-                ui.hideModal();
-                ui.addNotification(null, E('p', _('Failed to save settings or update QoSmate service: ') + err.message));
-            });
-    },
-    
+return view.extend({    
     render: function() {
         var m, s, o;
 

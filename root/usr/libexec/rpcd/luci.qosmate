@@ -86,7 +86,7 @@ local function get_connections()
         end
     end
     f:close()
-    
+
     return connections
 end
 
