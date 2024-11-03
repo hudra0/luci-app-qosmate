@@ -104,15 +104,15 @@ return view.extend({
             while (table.rows.length > 1) {
                 table.deleteRow(1);
             }
-        
+
             var currentTime = Date.now() / 1000;
             var timeDiff = currentTime - view.lastUpdateTime;
             view.lastUpdateTime = currentTime;
-        
+
             connections.forEach(function(conn) {
                 var key = conn.layer3 + conn.protocol + conn.src + conn.sport + conn.dst + conn.dport;
                 var lastConn = view.lastData[key];
-                
+
                 if (!view.connectionHistory[key]) {
                     view.connectionHistory[key] = {
                         inPpsHistory: [],
@@ -126,10 +126,10 @@ return view.extend({
                         lastTimestamp: currentTime
                     };
                 }
-        
+
                 var history = view.connectionHistory[key];
                 var instantInPps = 0, instantOutPps = 0, instantInBps = 0, instantOutBps = 0;
-        
+
                 if (lastConn && timeDiff > 0) {
                     var inPacketDiff = Math.max(0, conn.in_packets - history.lastInPackets);
                     var outPacketDiff = Math.max(0, conn.out_packets - history.lastOutPackets);
@@ -140,12 +140,12 @@ return view.extend({
                     instantOutPps = Math.round(outPacketDiff / timeDiff);
                     instantInBps = Math.round(inBytesDiff / timeDiff);
                     instantOutBps = Math.round(outBytesDiff / timeDiff);
-        
+
                     history.inPpsHistory.push(instantInPps);
                     history.outPpsHistory.push(instantOutPps);
                     history.inBpsHistory.push(instantInBps);
                     history.outBpsHistory.push(instantOutBps);
-        
+
                     if (history.inPpsHistory.length > view.historyLength) {
                         history.inPpsHistory.shift();
                         history.outPpsHistory.shift();
@@ -153,20 +153,20 @@ return view.extend({
                         history.outBpsHistory.shift();
                     }
                 }
-        
+
                 history.lastInPackets = conn.in_packets;
                 history.lastOutPackets = conn.out_packets;
                 history.lastInBytes = conn.in_bytes;
                 history.lastOutBytes = conn.out_bytes;
                 history.lastTimestamp = currentTime;
-        
+
                 var avgInPps = Math.round(history.inPpsHistory.reduce((a, b) => a + b, 0) / history.inPpsHistory.length) || 0;
                 var avgOutPps = Math.round(history.outPpsHistory.reduce((a, b) => a + b, 0) / history.outPpsHistory.length) || 0;
                 var avgInBps = Math.round(history.inBpsHistory.reduce((a, b) => a + b, 0) / history.inBpsHistory.length) || 0;
                 var avgOutBps = Math.round(history.outBpsHistory.reduce((a, b) => a + b, 0) / history.outBpsHistory.length) || 0;
                 var maxInPps = Math.max(...history.inPpsHistory, 0);
                 var maxOutPps = Math.max(...history.outPpsHistory, 0);
-        
+
                 conn.avgInPps = avgInPps;
                 conn.avgOutPps = avgOutPps;
                 conn.maxInPps = maxInPps;
@@ -175,9 +175,9 @@ return view.extend({
                 conn.avgOutBps = avgOutBps;
                 view.lastData[key] = conn;
             });
-        
+
             connections.sort(view.sortFunction.bind(view));
-        
+
             connections.forEach(function(conn) {
                 var srcFull = conn.src + ':' + (conn.sport || '-');
                 var dstFull = conn.dst + ':' + (conn.dport || '-');
@@ -193,7 +193,7 @@ return view.extend({
                 }
 
                 var srcFull = conn.src + (conn.sport !== "-" ? ':' + conn.sport : '');
-                var dstFull = conn.dst + (conn.dport !== "-" ? ':' + conn.dport : '');                
+                var dstFull = conn.dst + (conn.dport !== "-" ? ':' + conn.dport : '');
 
                 table.appendChild(E('tr', { 'class': 'tr' }, [
                     E('td', { 'class': 'td' }, conn.protocol.toUpperCase()),
@@ -237,7 +237,7 @@ return view.extend({
                     )
                 ]));
             });
-            view.updateSortIndicators();            
+            view.updateSortIndicators();
         };
 
         view.updateTable(connections);
@@ -290,7 +290,7 @@ return view.extend({
             .cbi-section-table.zoom-80 { font-size: 0.8rem !important; }
             .cbi-section-table.zoom-70 { font-size: 0.7rem !important; }
             .cbi-section-table.zoom-60 { font-size: 0.6rem !important; }
-            .cbi-section-table.zoom-50 { font-size: 0.5rem !important; }            
+            .cbi-section-table.zoom-50 { font-size: 0.5rem !important; }
 
             /* Adjust padding for zoomed states */
             .cbi-section-table[class*="zoom-"] td,
@@ -321,9 +321,9 @@ return view.extend({
             E('option', { 'value': 'zoom-80' }, _('80%')),
             E('option', { 'value': 'zoom-70' }, _('70%')),
             E('option', { 'value': 'zoom-60' }, _('60%')),
-            E('option', { 'value': 'zoom-50' }, _('50%'))            
-        ]);        
-        
+            E('option', { 'value': 'zoom-50' }, _('50%'))
+        ]);
+
         return E('div', { 'class': 'cbi-map' }, [
             style,
             E('h2', _('QoSmate Connections')),
@@ -356,7 +356,7 @@ return view.extend({
 
     sortFunction: function(a, b) {
         var aValue, bValue;
-        
+
         switch(this.sortColumn) {
             case 'bytes':
                 aValue = (a.in_bytes || 0) + (a.out_bytes || 0);
@@ -385,7 +385,7 @@ return view.extend({
         
         if (typeof aValue === 'string') aValue = aValue.toLowerCase();
         if (typeof bValue === 'string') bValue = bValue.toLowerCase();
-    
+
         if (aValue < bValue) return this.sortDescending ? 1 : -1;
         if (aValue > bValue) return this.sortDescending ? -1 : 1;
         return 0;

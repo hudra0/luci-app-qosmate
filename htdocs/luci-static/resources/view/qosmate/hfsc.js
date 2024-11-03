@@ -14,28 +14,6 @@ var callInitAction = rpc.declare({
 });
 
 return view.extend({
-    handleSaveApply: function(ev) {
-        return this.handleSave(ev)
-            .then(() => ui.changes.apply())
-            .then(() => uci.load('qosmate'))
-            .then(() => uci.get_first('qosmate', 'global', 'enabled'))
-            .then(enabled => {
-                if (enabled === '0') {
-                    return fs.exec_direct('/etc/init.d/qosmate', ['stop']);
-                } else {
-                    return fs.exec_direct('/etc/init.d/qosmate', ['restart']);
-                }
-            })
-            .then(() => {
-                ui.hideModal();
-                window.location.reload();
-            })
-            .catch(err => {
-                ui.hideModal();
-                ui.addNotification(null, E('p', _('Failed to save settings or update QoSmate service: ') + err.message));
-            });
-    },
-
     render: function() {
         var m, s, o;
 
@@ -90,7 +68,7 @@ return view.extend({
         createOption('PACKETSIZE', _('Avg Packet Size (B)'), _('Used with PFIFOMIN to calculate PFIFO limit'), _('Default: 450'), 'uinteger');
         createOption('netemdelayms', _('NETEM Delay (ms)'), _('NETEM delay in milliseconds'), _('Default: 30'), 'uinteger');
         createOption('netemjitterms', _('NETEM Jitter (ms)'), _('NETEM jitter in milliseconds'), _('Default: 7'), 'uinteger');
-        
+
         o = s.option(form.ListValue, 'netemdist', _('NETEM Distribution'), _('NETEM delay distribution'));
         o.value('experimental', _('Experimental'));
         o.value('normal', _('Normal'));
