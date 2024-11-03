@@ -11,6 +11,8 @@ LUCI_TITLE:=LuCI support for QoSmate
 LUCI_DEPENDS:=+qosmate +luci-lib-jsonc +lua
 LUCI_PKGARCH:=all
 
+PO_LANG:=de
+
 include $(TOPDIR)/feeds/luci/luci.mk
 
 define Build/Compile
