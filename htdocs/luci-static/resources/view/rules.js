@@ -158,7 +158,7 @@ return view.extend({
         };
 
         o = s.taboption('general', form.DynamicList, 'src_ip', _('Source IP'));
-        o.datatype = 'or(ip4addr, ip6addr, string)';
+        o.datatype = 'list(neg(ipaddr))';
         o.placeholder = _('any');
         o.rmempty = true;
         o.write = function(section_id, formvalue) {
@@ -166,18 +166,10 @@ return view.extend({
                 return v.replace(/^!(?!=)/, '!=');
             });
             return this.super('write', [section_id, values]);
-        };
-        o.validate = function(section_id, value) {
-            if (value === '')
-                return true;
-            
-            if (!value.match(/^(!|!=)?((\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(\/\d{1,2})?)|([0-9a-fA-F:]{2,}(::)?[0-9a-fA-F:]*(%\w+)?(\/\d{1,3})?)|[a-zA-Z0-9_]+)$/))
-                return _('Invalid IP address or hostname');
-            return true;
         };
         
         o = s.taboption('general', form.DynamicList, 'src_port', _('Source port'));
-        o.datatype = 'or(port, portrange, string)';
+		o.datatype = 'list(neg(portrange))';
         o.placeholder = _('any');
         o.rmempty = true;
         o.write = function(section_id, formvalue) {
@@ -185,18 +177,10 @@ return view.extend({
                 return v.replace(/^!(?!=)/, '!=');
             });
             return this.super('write', [section_id, values]);
-        };
-        o.validate = function(section_id, value) {
-            if (value === '')
-                return true;
-            
-            if (!value.match(/^(!|!=)?(\d+(-\d+)?|[a-zA-Z0-9]+)$/))
-                return _('Invalid port or port range');
-            return true;
         };
         
         o = s.taboption('general', form.DynamicList, 'dest_ip', _('Destination IP'));
-        o.datatype = 'or(ip4addr, ip6addr, string)';
+        o.datatype = 'list(neg(ipaddr))';
         o.placeholder = _('any');
         o.rmempty = true;
         o.write = function(section_id, formvalue) {
@@ -204,18 +188,10 @@ return view.extend({
                 return v.replace(/^!(?!=)/, '!=');
             });
             return this.super('write', [section_id, values]);
-        };
-        o.validate = function(section_id, value) {
-            if (value === '')
-                return true;
-            
-            if (!value.match(/^(!|!=)?((\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(\/\d{1,2})?)|([0-9a-fA-F:]{2,}(::)?[0-9a-fA-F:]*(%\w+)?(\/\d{1,3})?)|[a-zA-Z0-9_]+)$/))
-                return _('Invalid IP address or hostname');
-            return true;
         };
         
         o = s.taboption('general', form.DynamicList, 'dest_port', _('Destination port'));
-        o.datatype = 'or(port, portrange, string)';
+		o.datatype = 'list(neg(portrange))';
         o.placeholder = _('any');
         o.rmempty = true;
         o.write = function(section_id, formvalue) {
@@ -223,14 +199,6 @@ return view.extend({
                 return v.replace(/^!(?!=)/, '!=');
             });
             return this.super('write', [section_id, values]);
-        };
-        o.validate = function(section_id, value) {
-            if (value === '')
-                return true;
-            
-            if (!value.match(/^(!|!=)?(\d+(-\d+)?|[a-zA-Z0-9]+)$/))
-                return _('Invalid port or port range');
-            return true;
         };
 
         o = s.taboption('general', form.ListValue, 'class', _('DSCP Class'));
