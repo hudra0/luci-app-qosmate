@@ -84,11 +84,11 @@ return view.extend({
                 ]),
                 E('tr', { 'class': 'tr' }, [
                     E('td', { 'class': 'td left' }, _('Video')),
-                    E('td', { 'class': 'td left' }, 'CS3, AF4x, AF3x, CS2, TOS1')
+                    E('td', { 'class': 'td left' }, 'CS3, AF4x, AF3x, AF2x, CS2, TOS1')
                 ]),
                 E('tr', { 'class': 'tr' }, [
                     E('td', { 'class': 'td left' }, _('Best Effort')),
-                    E('td', { 'class': 'td left' }, 'CS0, AF1x, AF2x, TOS0')
+                    E('td', { 'class': 'td left' }, 'CS0, AF1x, TOS0')
                 ]),
                 E('tr', { 'class': 'tr' }, [
                     E('td', { 'class': 'td left' }, _('Bulk (Lowest Priority)')),
