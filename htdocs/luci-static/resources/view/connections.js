@@ -364,9 +364,14 @@ return view.extend({
             this.sortColumn = column;
             this.sortDescending = true;
         }
-        var connections = Object.values(this.lastData);
-        this.updateTable(connections);
-        this.updateSortIndicators();
+
+        // Defer sorting + table update to reduce blocking in click event handler
+        var view = this;
+        setTimeout(function() {
+            var connections = Object.values(view.lastData);
+            view.updateTable(connections);
+            view.updateSortIndicators();
+        }, 0);
     },
 
     sortFunction: function(a, b) {
