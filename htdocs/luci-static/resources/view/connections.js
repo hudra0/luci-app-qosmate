@@ -75,7 +75,7 @@ return view.extend({
 
         var filterInput = E('input', {
             'type': 'text',
-            'placeholder': _('Filter by IP, IP:Port, Port, Protocol or DSCP'),
+            'placeholder': _('Filter by: IP IP:Port Port Protocol DSCP'),
             'style': 'margin-bottom: 10px; width: 300px;',
             'value': view.filter
         });
@@ -179,22 +179,37 @@ return view.extend({
             connections.sort(view.sortFunction.bind(view));
         
             connections.forEach(function(conn) {
+                if (view.filter) {
+                    // Split the filter string by whitespace to get individual tokens
+                    var tokens = view.filter.split(/\s+/).map(function(token) {
+                        return token.trim().toLowerCase();
+                    });
+
+                    // Collect the relevant fields for matching
+                    var dscpString = dscpToString(conn.dscp);
+                    var srcFull = conn.src + (conn.sport !== "-" ? ':' + conn.sport : '');
+                    var dstFull = conn.dst + (conn.dport !== "-" ? ':' + conn.dport : '');
+                    var fields = [
+                        conn.protocol.toLowerCase(),
+                        srcFull.toLowerCase(),
+                        dstFull.toLowerCase(),
+                        dscpString.toLowerCase()
+                    ];
+
+                    // Each token must match at least one field (AND logic across tokens, OR logic across fields)
+                    var pass = tokens.every(function(t) {
+                        return fields.some(function(field) {
+                            return field.includes(t);
+                        });
+                    });
+                    if (!pass) {
+                        return;
+                    }
+                }
                 var srcFull = conn.src + ':' + (conn.sport || '-');
                 var dstFull = conn.dst + ':' + (conn.dport || '-');
                 var dscpString = dscpToString(conn.dscp);
                 
-                if (view.filter && !(
-                    conn.protocol.toLowerCase().includes(view.filter) ||
-                    srcFull.toLowerCase().includes(view.filter) ||
-                    dstFull.toLowerCase().includes(view.filter) ||
-                    dscpString.toLowerCase().includes(view.filter)
-                )) {
-                    return;
-                }
-
-                var srcFull = conn.src + (conn.sport !== "-" ? ':' + conn.sport : '');
-                var dstFull = conn.dst + (conn.dport !== "-" ? ':' + conn.dport : '');                
-
                 table.appendChild(E('tr', { 'class': 'tr' }, [
                     E('td', { 'class': 'td' }, conn.protocol.toUpperCase()),
                     E('td', { 'class': 'td' }, srcFull),
