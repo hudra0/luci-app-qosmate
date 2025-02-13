@@ -434,11 +434,18 @@ return view.extend({
 
 // Adaptive polling function that measures response time and adjusts the polling interval.
 function adaptivePoll(view) {
+    // Track if first poll has been completed
+    if (typeof view.hasPolledOnce === 'undefined') {
+        view.hasPolledOnce = false;
+    }
     var startTime = Date.now();
     callQoSmateConntrackDSCP().then(function(result) {
         var responseTime = Date.now() - startTime;
         // Adjust the polling interval based on response time.
-        if (responseTime > 2000) { // If response time exceeds 2000ms, increase interval.
+        if (!view.hasPolledOnce) {
+            view.pollInterval = 3;
+            view.hasPolledOnce = true;
+        } else if (responseTime > 2000) { // If response time exceeds 2000ms, increase interval.
             view.pollInterval = Math.min(view.pollInterval + 1, 10); // Max poll interval of 10 seconds.
         } else if (responseTime < 1000 && view.pollInterval > 1) { // If response is fast, decrease interval if possible.
             view.pollInterval = Math.max(view.pollInterval - 1, 1); // Minimum poll interval of 1 second.
