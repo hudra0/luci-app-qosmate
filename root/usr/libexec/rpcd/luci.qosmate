@@ -101,10 +101,10 @@ local function get_connections()
     local max_entries = math.huge
     
     -- Simple thresholds based on absolute load
-    if load1 > 3.0 then
+    if load1 > 2.0 then
         max_entries = 100
         -- io.popen("logger -t qosmate 'Critical load! Limiting to 100 connections'")
-    elseif load1 > 2.0 then
+    elseif load1 > 1.5 then
         max_entries = 500
         -- io.popen("logger -t qosmate 'High load! Limiting to 500 connections'")
     elseif load1 > 0.8 then
