@@ -59,6 +59,9 @@ return view.extend({
     connectionHistory: {},
     historyLength: 10,
     lastUpdateTime: 0,
+    autoRefresh: true,
+    refreshTimeout: null,
+    hasPolledOnce: false,
 
     load: function() {
         return Promise.all([
@@ -347,7 +350,23 @@ return view.extend({
                 ' ',  // Space between elements.
                 E('span', _('Zoom:')),
                 zoomSelect,
-                pollIntervalDisplay // Display the current polling interval.
+                pollIntervalDisplay,
+                ' ',  // Space between elements.
+                E('button', {
+                    'type': 'button',
+                    'style': 'margin-left: 10px;',
+                    'click': function(ev) {
+                        if (view.autoRefresh) {
+                            clearTimeout(view.refreshTimeout);
+                            view.autoRefresh = false;
+                            this.textContent = _('Resume');
+                        } else {
+                            view.autoRefresh = true;
+                            this.textContent = _('Pause');
+                            adaptivePoll(view);
+                        }
+                    }
+                }, _('Pause'))
             ]),
             E('div', { 'class': 'cbi-section' }, [
                 E('div', { 'class': 'cbi-section-node' }, [
@@ -434,21 +453,20 @@ return view.extend({
 
 // Adaptive polling function that measures response time and adjusts the polling interval.
 function adaptivePoll(view) {
-    // Track if first poll has been completed
-    if (typeof view.hasPolledOnce === 'undefined') {
-        view.hasPolledOnce = false;
+    if (!view.autoRefresh) {
+        return; // Do not schedule a new poll if auto-refresh is paused
     }
     var startTime = Date.now();
     callQoSmateConntrackDSCP().then(function(result) {
         var responseTime = Date.now() - startTime;
-        // Adjust the polling interval based on response time.
+        // Adjust the polling interval based on response time.        
         if (!view.hasPolledOnce) {
             view.pollInterval = 3;
             view.hasPolledOnce = true;
         } else if (responseTime > 2000) { // If response time exceeds 2000ms, increase interval.
             view.pollInterval = Math.min(view.pollInterval + 1, 10); // Max poll interval of 10 seconds.
-        } else if (responseTime < 1000 && view.pollInterval > 1) { // If response is fast, decrease interval if possible.
-            view.pollInterval = Math.max(view.pollInterval - 1, 1); // Minimum poll interval of 1 second.
+        } else if (responseTime < 1000 && view.pollInterval > 1) { // If response time is less than 1000ms and poll interval is greater than 1 second, decrease interval.
+            view.pollInterval = Math.max(view.pollInterval - 1, 1); // Min poll interval of 1 second.
         }
         // Update the polling interval display in the UI.
         var pollDisplay = document.getElementById('poll_interval_display');
@@ -461,9 +479,11 @@ function adaptivePoll(view) {
             console.error('Invalid data received:', result);
         }
     }).finally(function() {
-        // Schedule the next poll using the updated poll interval.
-        setTimeout(function() {
-            adaptivePoll(view);
-        }, view.pollInterval * 1000);
+        // Schedule the next poll only if auto-refresh is not paused
+        if (view.autoRefresh) {
+            view.refreshTimeout = setTimeout(function() {
+                adaptivePoll(view);
+            }, view.pollInterval * 1000);
+        }
     });
 }
