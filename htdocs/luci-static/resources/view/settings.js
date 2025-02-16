@@ -8,7 +8,7 @@
 'require poll';
 'require tools.widgets as widgets';
 
-const UI_VERSION = '1.0.19';
+const UI_VERSION = '1.0.20';
 
 var callInitAction = rpc.declare({
     object: 'luci',
