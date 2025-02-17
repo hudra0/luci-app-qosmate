@@ -158,27 +158,26 @@ return view.extend({
         };
 
         o = s.taboption('general', form.DynamicList, 'src_ip', _('Source IP'));
-        o.datatype = 'or(list(neg(ipaddr)),string)';
+        o.datatype = 'string';
         o.placeholder = _('IP address or @setname');
-        o.description = _('Enter an IP address/subnet or reference an IP set with @setname (e.g., @gaming_devices)');
         o.rmempty = true;
         o.validate = function(section_id, value) {
             if (!value || value.length === 0) {
                 return true;
             }
             
-            var values = Array.isArray(value) ? value : [value];
+            var values = Array.isArray(value) ? value : value.split(/\s+/);
+            var ipCidrRegex = /^(?:(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)(?:\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)){3})(?:\/(?:[0-9]|[1-2]\d|3[0-2]))?|(?:(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}|(?:[A-Fa-f0-9]{1,4}:){1,7}:|(?:[A-Fa-f0-9]{1,4}:){1,6}:[A-Fa-f0-9]{1,4}|(?:[A-Fa-f0-9]{1,4}:){1,5}(?::[A-Fa-f0-9]{1,4}){1,2}|(?:[A-Fa-f0-9]{1,4}:){1,4}(?::[A-Fa-f0-9]{1,4}){1,3}|(?:[A-Fa-f0-9]{1,4}:){1,3}(?::[A-Fa-f0-9]{1,4}){1,4}|(?:[A-Fa-f0-9]{1,4}:){1,2}(?::[A-Fa-f0-9]{1,4}){1,5}|[A-Fa-f0-9]{1,4}:(?:(?::[A-Fa-f0-9]{1,4}){1,6})|:(?:(?::[A-Fa-f0-9]{1,4}){1,7}|:))(?:\/(?:[0-9]|[1-9]\d|1[0-1]\d|12[0-8]))?)$/;
+            
             for (var i = 0; i < values.length; i++) {
                 var v = values[i].replace(/^!(?!=)/, '!=');
                 if (v.startsWith('@')) {
-                    // Validate setname format
                     if (!/^@[a-zA-Z0-9_]+$/.test(v)) {
                         return _('Invalid set name format. Must start with @ followed by letters, numbers, or underscore');
                     }
                 } else {
-                    // Validate as IP address
-                    if (!/^(?:!=|!)?(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?:\/(?:3[0-2]|[12]?[0-9]))?$/.test(v)) {
-                        return _('Invalid IP address format');
+                    if (!ipCidrRegex.test(v)) {
+                        return _('Invalid IP address or CIDR format: ') + v;
                     }
                 }
             }
@@ -203,27 +202,26 @@ return view.extend({
         };
         
         o = s.taboption('general', form.DynamicList, 'dest_ip', _('Destination IP'));
-        o.datatype = 'or(list(neg(ipaddr)),string)';
+        o.datatype = 'string';
         o.placeholder = _('IP address or @setname');
-        o.description = _('Enter an IP address/subnet or reference an IP set with @setname (e.g., @gaming_devices)');
         o.rmempty = true;
         o.validate = function(section_id, value) {
             if (!value || value.length === 0) {
                 return true;
             }
             
-            var values = Array.isArray(value) ? value : [value];
+            var values = Array.isArray(value) ? value : value.split(/\s+/);
+            var ipCidrRegex = /^(?:(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)(?:\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)){3})(?:\/(?:[0-9]|[1-2]\d|3[0-2]))?|(?:(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}|(?:[A-Fa-f0-9]{1,4}:){1,7}:|(?:[A-Fa-f0-9]{1,4}:){1,6}:[A-Fa-f0-9]{1,4}|(?:[A-Fa-f0-9]{1,4}:){1,5}(?::[A-Fa-f0-9]{1,4}){1,2}|(?:[A-Fa-f0-9]{1,4}:){1,4}(?::[A-Fa-f0-9]{1,4}){1,3}|(?:[A-Fa-f0-9]{1,4}:){1,3}(?::[A-Fa-f0-9]{1,4}){1,4}|(?:[A-Fa-f0-9]{1,4}:){1,2}(?::[A-Fa-f0-9]{1,4}){1,5}|[A-Fa-f0-9]{1,4}:(?:(?::[A-Fa-f0-9]{1,4}){1,6})|:(?:(?::[A-Fa-f0-9]{1,4}){1,7}|:))(?:\/(?:[0-9]|[1-9]\d|1[0-1]\d|12[0-8]))?)$/;
+            
             for (var i = 0; i < values.length; i++) {
                 var v = values[i].replace(/^!(?!=)/, '!=');
                 if (v.startsWith('@')) {
-                    // Validate setname format
                     if (!/^@[a-zA-Z0-9_]+$/.test(v)) {
                         return _('Invalid set name format. Must start with @ followed by letters, numbers, or underscore');
                     }
                 } else {
-                    // Validate as IP address
-                    if (!/^(?:!=|!)?(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?:\/(?:3[0-2]|[12]?[0-9]))?$/.test(v)) {
-                        return _('Invalid IP address format');
+                    if (!ipCidrRegex.test(v)) {
+                        return _('Invalid IP address or CIDR format: ') + v;
                     }
                 }
             }
