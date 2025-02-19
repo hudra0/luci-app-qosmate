@@ -87,6 +87,15 @@ return view.extend({
         o = s.option(form.Value, 'timeout', _('Timeout'));
         o.placeholder = _('e.g., 1h');
         o.depends('mode', 'dynamic');
+        o.validate = function(section_id, value) {
+            if (!value)
+                return true; // Allow empty value if applicable
+            // Validate that the timeout is in a valid format (e.g., combination of numbers and allowed time units: h, m, s)
+            if (!/^(\d+[hms])+$/.test(value)) {
+                return _('Timeout must be in a valid format (e.g., "10s", "1h", "2h12m10s")');
+            }
+            return true;
+        };
 
         o = s.option(form.Flag, 'enabled', _('Enabled'));
         o.default = '1';
