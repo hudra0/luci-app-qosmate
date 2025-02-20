@@ -1,0 +1,37 @@
+name: Sync Submodules
+
+on:
+  schedule:
+    - cron: '0 23 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync-submodules:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Update submodules to latest remote commits
+      run: |
+        git submodule update --init --recursive
+        git submodule update --recursive --remote
+
+    - name: Commit and push changes if any
+      run: |
+        git config --global user.name "github-actions[bot]"
+        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git add .
+        git diff-index --quiet HEAD || git commit -m "Update submodules to latest remote commits"
+        git push
+
+    - name: Delete workflow runs
+      uses: Mattraks/delete-workflow-runs@main
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        repository: ${{ github.repository }}
+        retain_days: 0
+        keep_minimum_runs: 2
