@@ -376,7 +376,7 @@ return view.extend({
                 
                 // Determine class description based on ID and skip those that don't match
                 if (classId.includes('1:11')) {
-                    classDesc = _('High Priority (Game/Realtime)');
+                    classDesc = _('High Priority (Realtime)');
                     sortOrder = 5;
                 }
                 else if (classId.includes('1:12')) {
@@ -481,7 +481,7 @@ return view.extend({
                 
                 // Determine class description based on ID and skip those that don't match
                 if (classId.includes('1:11')) {
-                    classDesc = _('High Priority (Game/Realtime)');
+                    classDesc = _('High Priority (Realtime)');
                     sortOrder = 5;
                 }
                 else if (classId.includes('1:12')) {
