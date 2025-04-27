@@ -8,7 +8,8 @@
 'require poll';
 'require tools.widgets as widgets';
 
-const UI_VERSION = '1.1.0';
+const UI_VERSION = '1.2.0';
+const UI_UPD_CHANNEL = 'release';
 
 var callInitAction = rpc.declare({
     object: 'luci',
@@ -22,7 +23,7 @@ var latestVersion = 'Unknown';
 var healthCheckData = null;
 
 function fetchCurrentVersion() {
-    return fs.read('/etc/qosmate.sh').then(function(content) {
+    return fs.read('/etc/init.d/qosmate').then(function(content) {
         var match = content.match(/^VERSION="(.+)"/m);
         currentVersion = match ? match[1] : 'Unknown';
         return currentVersion;
