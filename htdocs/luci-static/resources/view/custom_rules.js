@@ -193,11 +193,9 @@ ${formvalue.trim()}
         o = s.option(form.DummyValue, '_validation_result', _('Validation Result'));
         o.rawhtml = true;
         o.default = validationResult
-            ? E('div', { 'class': 'cbi-value-field' },
-                E('div', { 'class': 'cbi-section-node', 'style': 'background-color:#f9f9f9; border:1px solid #e5e5e5; border-radius:3px; padding:10px; margin-top:5px; min-width: 700px' },
-                    E('pre', { 'style': 'white-space:pre-wrap; word-break:break-word;' }, validationResult)
-                )
-            )
+            ? '<div class="cbi-section-node" style="margin-top: 8px; min-width: 700px;">' +
+                '<pre style="background:rgba(255,255,255,0.1); border:1px solid rgba(128,128,128,0.3); padding:6px; margin:4px 0; border-radius:3px; font-size:11px; white-space:pre-wrap; font-family:monospace;">' +
+                validationResult + '</pre></div>'
             : _('No validation performed yet');
 
         o = s.option(form.Button, '_validate', _('Validate Rules'));
@@ -242,7 +240,9 @@ ${formvalue.trim()}
                     }
                     var validationResultElement = document.getElementById('cbid.qosmate.custom_rules._validation_result');
                     if (validationResultElement) {
-                        validationResultElement.innerHTML = E('pre', {}, result).outerHTML;
+                        validationResultElement.innerHTML = '<div class="cbi-section-node" style="margin-top: 8px; min-width: 700px;">' +
+                            '<pre style="background:rgba(255,255,255,0.1); border:1px solid rgba(128,128,128,0.3); padding:6px; margin:4px 0; border-radius:3px; font-size:11px; white-space:pre-wrap; font-family:monospace;">' +
+                            result + '</pre></div>';
                     }
                     ui.showModal(_('Finalizing Validation'), [
                         E('p', { 'class': 'spinning' }, _('Finalizing validation results, please wait...'))
