@@ -58,6 +58,14 @@
             "path": "qosmate/ipsets"
         }
     },
+    "admin/network/qosmate/ip_limits": {
+        "title": "IP Rate Limits",
+        "order": 47,
+        "action": {
+            "type": "view",
+            "path": "qosmate/ip_limits"
+        }
+    },
     "admin/network/qosmate/custom_rules": {
         "title": "Custom Rules",
         "order": 60,
