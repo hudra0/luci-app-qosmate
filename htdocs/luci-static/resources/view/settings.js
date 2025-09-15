@@ -490,32 +490,39 @@ return view.extend({
                 var [type, status] = detail.split(':');
                 var displayType = type.charAt(0).toUpperCase() + type.slice(1);
                 var icon, color;
-                switch(status.toLowerCase()) {
-                    case 'enabled':
-                    case 'started':
-                        icon = '✓';
-                        color = 'green';
-                        break;
-                    case 'disabled':
-                    case 'stopped':
-                        icon = '✕';
-                        color = 'red';
-                        break;
-                    case 'ok':
-                        icon = '✓';
-                        color = 'green';
-                        break;
-                    case 'failed':
-                        icon = '✕';
-                        color = 'red';
-                        break;
-                    case 'missing':
-                        icon = '⚠';
-                        color = 'orange';
-                        break;
-                    default:
-                        icon = '⚠';
-                        color = 'orange';
+                var statusLower = status ? status.toLowerCase() : '';
+                var isIntegrity = type && type.toLowerCase().indexOf('integr') !== -1;
+                if (isIntegrity && statusLower !== 'ok') {
+                    icon = '⚠';
+                    color = 'orange';
+                } else {
+                    switch(statusLower) {
+                        case 'enabled':
+                        case 'started':
+                            icon = '✓';
+                            color = 'green';
+                            break;
+                        case 'disabled':
+                        case 'stopped':
+                            icon = '✕';
+                            color = 'red';
+                            break;
+                        case 'ok':
+                            icon = '✓';
+                            color = 'green';
+                            break;
+                        case 'failed':
+                            icon = '✕';
+                            color = 'red';
+                            break;
+                        case 'missing':
+                            icon = '⚠';
+                            color = 'orange';
+                            break;
+                        default:
+                            icon = '⚠';
+                            color = 'orange';
+                    }
                 }
                 
                 statusHtml.appendChild(
