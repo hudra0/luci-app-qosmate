@@ -491,10 +491,16 @@ return view.extend({
                 var displayType = type.charAt(0).toUpperCase() + type.slice(1);
                 var icon, color;
                 var statusLower = status ? status.toLowerCase() : '';
-                var isIntegrity = type && type.toLowerCase().indexOf('integr') !== -1;
-                if (isIntegrity && statusLower !== 'ok') {
-                    icon = '⚠';
-                    color = 'orange';
+                var typeLower = type ? type.trim().toLowerCase() : '';
+                var isIntegrity = (typeLower === 'integrity');
+                if (isIntegrity) {
+                    if (statusLower === 'ok') {
+                        icon = '✓';
+                        color = 'green';
+                    } else {
+                        icon = '⚠';
+                        color = 'orange';
+                    }
                 } else {
                     switch(statusLower) {
                         case 'enabled':
