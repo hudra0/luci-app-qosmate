@@ -57,6 +57,9 @@ get_stats() {
     local wan_interface
     wan_interface=$(uci -q get qosmate.settings.WAN || echo "eth1")
     
+    local wan_egress_interface
+    wan_egress_interface="ifb-${wan_interface}-egress"
+    
     local ifb_interface
     ifb_interface="ifb-$wan_interface"
     
@@ -70,7 +73,7 @@ get_stats() {
     if [ "$root_qdisc" = "cake" ]; then
         # Extract CAKE statistics for both egress and ingress
         local cake_egress_stats
-        cake_egress_stats=$(echo "$filtered_stats" | jq -c "[.[] | select(.kind == \"cake\" and .dev == \"$wan_interface\")]" 2>/dev/null || echo "[]")
+        cake_egress_stats=$(echo "$filtered_stats" | jq -c "[.[] | select(.kind == \"cake\" and .dev == \"$wan_egress_interface\")]" 2>/dev/null || echo "[]")
         debug_log "Cake egress stats: $cake_egress_stats"
 
         local cake_ingress_stats
@@ -93,6 +96,7 @@ get_stats() {
         result=$(jq -n \
             --arg rq "$root_qdisc" \
             --arg wi "$wan_interface" \
+            --arg wei "$wan_egress_interface" \
             --arg ii "$ifb_interface" \
             --arg pqi "$priority_queue_ingress" \
             --arg pqe "$priority_queue_egress" \
@@ -102,6 +106,7 @@ get_stats() {
             '{
                 root_qdisc: $rq,
                 wan_interface: $wi,
+                wan_egress_interface: $wei,
                 ifb_interface: $ii,
                 priority_queue_ingress: $pqi,
                 priority_queue_egress: $pqe,
@@ -112,11 +117,11 @@ get_stats() {
     elif [ "$root_qdisc" = "hfsc" ] || [ "$root_qdisc" = "hybrid" ]; then
         # Extract HFSC root qdiscs and classes (hybrid uses HFSC root)
         local hfsc_egress_qdisc
-        hfsc_egress_qdisc=$(get_tc_json tc -s -j qdisc show dev "$wan_interface" | jq -c "[.[] | select(.kind == \"hfsc\")]" 2>/dev/null || echo "[]")
+        hfsc_egress_qdisc=$(get_tc_json tc -s -j qdisc show dev "$wan_egress_interface" | jq -c "[.[] | select(.kind == \"hfsc\")]" 2>/dev/null || echo "[]")
         debug_log "HFSC egress qdisc: $hfsc_egress_qdisc"
         
         local hfsc_egress_classes
-        hfsc_egress_classes=$(get_tc_json tc -s -j class show dev "$wan_interface")
+        hfsc_egress_classes=$(get_tc_json tc -s -j class show dev "$wan_egress_interface")
         debug_log "HFSC egress classes: $hfsc_egress_classes"
         
         # Process the output to ensure it's valid JSON
@@ -135,7 +140,7 @@ get_stats() {
 
         # Get leaf qdisc statistics
         local egress_leaf_qdiscs
-        egress_leaf_qdiscs=$(get_tc_json tc -s -j qdisc show dev "$wan_interface")
+        egress_leaf_qdiscs=$(get_tc_json tc -s -j qdisc show dev "$wan_egress_interface")
         debug_log "Egress leaf qdiscs: $egress_leaf_qdiscs"
         
         # Process the output to ensure it's valid JSON and filter non-HFSC qdiscs
@@ -173,6 +178,7 @@ get_stats() {
         result=$(jq -n \
             --arg rq "$root_qdisc" \
             --arg wi "$wan_interface" \
+            --arg wei "$wan_egress_interface" \
             --arg ii "$ifb_interface" \
             --arg gq "$gameqdisc" \
             --argjson fs "$filtered_stats" \
@@ -187,6 +193,7 @@ get_stats() {
             '{
                 root_qdisc: $rq,
                 wan_interface: $wi,
+                wan_egress_interface: $wei,
                 ifb_interface: $ii,
                 gameqdisc: $gq,
                 qdisc_stats: $fs,
@@ -201,11 +208,11 @@ get_stats() {
             }' 2>/dev/null)
     elif [ "$root_qdisc" = "htb" ]; then
         local htb_egress_qdisc
-        htb_egress_qdisc=$(get_tc_json tc -s -j qdisc show dev "$wan_interface" | jq -c "[.[] | select(.kind == \"htb\")]" 2>/dev/null || echo "[]")
+        htb_egress_qdisc=$(get_tc_json tc -s -j qdisc show dev "$wan_egress_interface" | jq -c "[.[] | select(.kind == \"htb\")]" 2>/dev/null || echo "[]")
         debug_log "HTB egress qdisc: $htb_egress_qdisc"
         
         local htb_egress_classes
-        htb_egress_classes=$(get_tc_json tc -s -j class show dev "$wan_interface")
+        htb_egress_classes=$(get_tc_json tc -s -j class show dev "$wan_egress_interface")
         debug_log "HTB egress classes: $htb_egress_classes"
         htb_egress_classes=$(echo "$htb_egress_classes" | jq -c '.' 2>/dev/null || echo "[]")
         
@@ -219,7 +226,7 @@ get_stats() {
         htb_ingress_classes=$(echo "$htb_ingress_classes" | jq -c '.' 2>/dev/null || echo "[]")
         
         local egress_leaf_qdiscs
-        egress_leaf_qdiscs=$(get_tc_json tc -s -j qdisc show dev "$wan_interface")
+        egress_leaf_qdiscs=$(get_tc_json tc -s -j qdisc show dev "$wan_egress_interface")
         debug_log "Egress leaf qdiscs: $egress_leaf_qdiscs"
         egress_leaf_qdiscs=$(echo "$egress_leaf_qdiscs" | jq -c '[.[] | select(.kind != "htb" and .parent != null)]' 2>/dev/null || echo "[]")
         
@@ -236,6 +243,7 @@ get_stats() {
         result=$(jq -n \
             --arg rq "$root_qdisc" \
             --arg wi "$wan_interface" \
+            --arg wei "$wan_egress_interface" \
             --arg ii "$ifb_interface" \
             --argjson fs "$filtered_stats" \
             --argjson he "$htb_egress" \
@@ -247,6 +255,7 @@ get_stats() {
             '{
                 root_qdisc: $rq,
                 wan_interface: $wi,
+                wan_egress_interface: $wei,
                 ifb_interface: $ii,
                 qdisc_stats: $fs,
                 htb_egress: $he,
