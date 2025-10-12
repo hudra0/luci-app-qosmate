@@ -165,16 +165,36 @@ return view.extend({
             };
 
             o = s.taboption('limits', form.Value, 'burst_factor', _('Burst Factor'));
-            o.datatype = 'ufloat';
             o.placeholder = _('1.0');
             o.default = '1.0';
             o.validate = function(section_id, value) {
-                if (!value) return true;
-                var floatVal = parseFloat(value);
-                if (floatVal < 0.0 || floatVal > 10.0) {
+                if (!value || value === '') return true;
+                
+                // Only allow digits, comma, and period
+                if (!/^[0-9,\.]+$/.test(value)) {
+                    return _('Only digits and decimal separators allowed');
+                }
+                
+                // Accept both comma and period as decimal separator
+                var normalizedValue = value.replace(',', '.');
+                
+                // Validate decimal format
+                if (!/^\d*\.?\d*$/.test(normalizedValue)) {
+                    return _('Invalid decimal format');
+                }
+                
+                var floatVal = parseFloat(normalizedValue);
+                if (isNaN(floatVal) || floatVal < 0.0 || floatVal > 10.0) {
                     return _('Must be between 0.0 and 10.0 (0 = no burst)');
                 }
                 return true;
+            };
+            o.write = function(section_id, formvalue) {
+                // Normalize comma to period before saving
+                if (formvalue) {
+                    formvalue = formvalue.replace(',', '.');
+                }
+                return this.super('write', [section_id, formvalue]);
             };
             var superRenderWidgetBurst = o.renderWidget;
             o.renderWidget = function(section_id, option_index, cfgvalue) {
