@@ -13,7 +13,7 @@ var callInitAction = rpc.declare({
     expect: { result: false }
 });
 
-// Validation helper for mixed IP/IPv6/MAC targets
+// Validation helper for IP/IPv6 targets
 function validateTargetField(section_id, value) {
     if (!value || value.length === 0) return true;
     
@@ -21,7 +21,6 @@ function validateTargetField(section_id, value) {
     var ipv4Regex = /^(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)(?:\.(?:25[0-5]|2[0-4]\d|[01]?\d\d?)){3})(?:\/(?:[0-9]|[1-2]\d|3[0-2]))?$/;
     var ipv6Regex = /^(?:[A-Fa-f0-9]{1,4}:){7}[A-Fa-f0-9]{1,4}$|^(?:[A-Fa-f0-9]{1,4}:){1,7}:$|^(?:[A-Fa-f0-9]{1,4}:){1,6}:[A-Fa-f0-9]{1,4}$|^(?:[A-Fa-f0-9]{1,4}:){1,5}(?::[A-Fa-f0-9]{1,4}){1,2}$|^(?:[A-Fa-f0-9]{1,4}:){1,4}(?::[A-Fa-f0-9]{1,4}){1,3}$|^(?:[A-Fa-f0-9]{1,4}:){1,3}(?::[A-Fa-f0-9]{1,4}){1,4}$|^(?:[A-Fa-f0-9]{1,4}:){1,2}(?::[A-Fa-f0-9]{1,4}){1,5}$|^[A-Fa-f0-9]{1,4}:(?::[A-Fa-f0-9]{1,4}){1,6}$|^:(?::[A-Fa-f0-9]{1,4}){1,7}$|^(?:[A-Fa-f0-9]{1,4}:){7}:$|^::$/;
     var ipv6CidrRegex = /^(?:[A-Fa-f0-9]{1,4}:){1,7}[A-Fa-f0-9]{0,4}\/(?:[0-9]|[1-9]\d|1[01]\d|12[0-8])$/;
-    var macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
     
     for (var i = 0; i < values.length; i++) {
         var v = values[i];
@@ -39,12 +38,17 @@ function validateTargetField(section_id, value) {
         var isNegated = v.startsWith('!=');
         var valueToValidate = isNegated ? v.substring(2) : v;
         
-        // Validate IP/CIDR/IPv6/MAC
+        // Block MAC addresses explicitly 
+        var macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
+        if (macRegex.test(valueToValidate)) {
+            return _('MAC addresses not supported: ') + v + _(' (use IP addresses instead)');
+        }
+        
+        // Validate IP/CIDR/IPv6
         if (!ipv4Regex.test(valueToValidate) && 
             !ipv6Regex.test(valueToValidate) && 
-            !ipv6CidrRegex.test(valueToValidate) && 
-            !macRegex.test(valueToValidate)) {
-            return _('Invalid target format: ') + v + _(' (expected IP, IPv6, CIDR, MAC, or @setname)');
+            !ipv6CidrRegex.test(valueToValidate)) {
+            return _('Invalid target format: ') + v + _(' (expected IP, IPv6, CIDR, or @setname)');
         }
     }
     
@@ -98,7 +102,7 @@ return view.extend({
 
             o = s.taboption('general', form.DynamicList, 'target', _('Target Devices'));
             o.datatype = 'string';
-            o.placeholder = _('192.168.1.100, !=192.168.1.77, aa:bb:cc:dd:ee:ff');
+            o.placeholder = _('192.168.1.100, !=192.168.1.77, 2001:db8::1');
             o.rmempty = false;
             o.validate = validateTargetField;
             o.write = function(section_id, formvalue) {
@@ -112,7 +116,7 @@ return view.extend({
             o.renderWidget = function(section_id, option_index, cfgvalue) {
                 var widget = superRenderWidgetTarget.call(this, section_id, option_index, cfgvalue);
                 var descr = E('div', { 'class': 'cbi-value-description' }, 
-                    'IP/IPv6/MAC/CIDR. Exclusions: !=192.168.1.77, IP Sets: @vip_guests');
+                    'IP/IPv6/CIDR addresses and subnets only. Exclusions: !=192.168.1.77, IP Sets: @vip_guests');
                 return E('div', {}, [widget, descr]);
             };
 
