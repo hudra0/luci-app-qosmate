@@ -85,7 +85,7 @@ return view.extend({
             var m, s, o;
 
             m = new form.Map('qosmate', _('QoSmate Rate Limits'),
-                _('Configure per-device bandwidth limits using nftables meters. Limits are applied based on the source IP/MAC of devices, making it easy to control traffic for specific devices or subnets.'));
+                _('Configure per-device bandwidth limits using nftables meters. Limits are applied based on the source IP of devices, making it easy to control traffic for specific devices or subnets.'));
 
             s = m.section(form.GridSection, 'ratelimit', _('Rate Limits'));
             s.addremove = true;
