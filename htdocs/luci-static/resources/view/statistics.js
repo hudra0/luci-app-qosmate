@@ -1995,7 +1995,9 @@ return view.extend({
         var bwLegendItems = [
             { label: _('Rate Limit'), color: '#2196F3' },
             { label: _('Throughput'), color: '#4CAF50' },
-            { label: _('Base Rate'), color: '#9E9E9E', dashed: true }
+            { label: _('Base Rate'), color: '#9E9E9E', dashed: true },
+            { label: _('Max'), color: '#F44336', dashed: true },
+            { label: _('Min'), color: '#FF9800', dashed: true }
         ];
         
         // Populate DOM legends
