@@ -6,6 +6,7 @@
 'require form';
 'require dom';
 'require fs';
+'require uci';
 
 // Define RPC calls
 var callQoSmateStats = rpc.declare({
@@ -243,7 +244,8 @@ return view.extend({
             callQoSmateStats(),
             callQoSmateHistoricalStats(),
             callQoSmateRrdData(),
-            callQoSmateAutorateStats()
+            callQoSmateAutorateStats(),
+            uci.load('qosmate')
         ]);
     },
 
@@ -1298,20 +1300,68 @@ return view.extend({
             // Time range selector
             var timeRangeRow = E('div', { 'style': 'margin: 0.5em 0 0.8em 0.25em;' });
             timeRangeRow.appendChild(E('span', {}, _('Time Range') + ' '));
+            var flashEnabled = uci.get('qosmate', 'autorate', 'flash_history') === '1';
             var rangeSelect = E('select', {
                 'class': 'autorate-time-range',
+                'disabled': !flashEnabled ? '' : null,
                 'change': function(ev) {
                     view.autorateTimeRange = ev.target.value;
                     if (view.autorateData) view.updateAutorateUI(view.autorateData);
                 }
             });
-            [['60m', '60 ' + _('minutes')], ['6h', '6 ' + _('hours')], ['24h', '24 ' + _('hours')],
-             ['7d', '7 ' + _('days')], ['30d', '30 ' + _('days')]].forEach(function(opt) {
+            [['60m', '60 ' + _('minutes')]].concat(flashEnabled ? [
+                ['6h', '6 ' + _('hours')], ['24h', '24 ' + _('hours')],
+                ['7d', '7 ' + _('days')], ['30d', '30 ' + _('days')]
+            ] : []).forEach(function(opt) {
                 var o = E('option', { 'value': opt[0] }, opt[1]);
                 if (opt[0] === view.autorateTimeRange) o.selected = true;
                 rangeSelect.appendChild(o);
             });
             timeRangeRow.appendChild(rangeSelect);
+            
+            // Flash history toggle
+            var flashCb = E('input', {
+                'type': 'checkbox',
+                'id': 'autorate-flash-history',
+                'checked': flashEnabled ? '' : null,
+                'style': 'position: relative; top: -0.15rem; margin-right: 4px;',
+                'change': function(ev) {
+                    var enabled = ev.target.checked;
+                    var val = enabled ? '1' : '0';
+                    // Apply UCI change immediately (same pattern as connections.js)
+                    uci.load('qosmate').then(function() {
+                        uci.set('qosmate', 'autorate', 'flash_history', val);
+                        return uci.save();
+                    }).then(function() {
+                        return uci.apply();
+                    }).then(function() {
+                        uci.unload('qosmate');
+                        return uci.load('qosmate');
+                    });
+                    // Update dropdown immediately without waiting for apply
+                    var sel = document.querySelector('.autorate-time-range');
+                    if (sel) {
+                        view.autorateTimeRange = '60m';
+                        sel.value = '60m';
+                        while (sel.options.length > 1) sel.remove(1);
+                        if (enabled) {
+                            [['6h', '6 ' + _('hours')], ['24h', '24 ' + _('hours')],
+                             ['7d', '7 ' + _('days')], ['30d', '30 ' + _('days')]].forEach(function(opt) {
+                                sel.appendChild(E('option', { 'value': opt[0] }, opt[1]));
+                            });
+                            sel.disabled = false;
+                        } else {
+                            sel.disabled = true;
+                        }
+                    }
+                }
+            });
+            var flashLabel = E('label', {
+                'for': 'autorate-flash-history',
+                'style': 'margin-left: 1.5em; font-size: 12px; cursor: pointer;'
+            }, [ flashCb, ' ' + _('Enable long-term history') ]);
+            timeRangeRow.appendChild(flashLabel);
+            
             autorateContainer.appendChild(timeRangeRow);
             
             // Data availability info hint (hidden by default)
