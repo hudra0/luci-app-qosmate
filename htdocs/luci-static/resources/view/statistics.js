@@ -1957,15 +1957,16 @@ return view.extend({
         // Extract time-series from history
         // RAM: [ts, ul, dl, a_ul, a_dl, lat, bl, ulp, dlp]
         // Flash: [ts, avg_ul, avg_dl, avg_a_ul, avg_a_dl, avg_lat, max_lat, avg_bl, avg_ulp, avg_dlp]
-        var latData = [], blData = [];
+        var latData = [], maxLatData = [], blData = [];
         var ulRateData = [], ulAchData = [], dlRateData = [], dlAchData = [];
         
         for (var i = 0; i < rawHistory.length; i++) {
             var h = rawHistory[i];
             var t = h[0];
             if (isFlash) {
-                latData.push([t, h[5] / 10]);   // avg latency
-                blData.push([t, h[7] / 10]);     // baseline at index 7 in flash
+                latData.push([t, h[5] / 10]);     // avg latency
+                maxLatData.push([t, h[6] / 10]);   // max latency (spikes)
+                blData.push([t, h[7] / 10]);       // baseline at index 7 in flash
                 ulRateData.push([t, h[1]]);
                 ulAchData.push([t, h[3]]);
                 dlRateData.push([t, h[2]]);
@@ -1984,13 +1985,14 @@ return view.extend({
         var incThrMs = cfg.increase_threshold / 10;
         var lastBl = blData.length > 0 ? blData[blData.length - 1][1] : 0;
         
-        // Latency legend items
+        // Latency legend items (add max latency entry for flash data)
         var latLegendItems = [
             { label: _('Latency'), color: '#2196F3' },
             { label: _('Baseline'), color: '#4CAF50', dashed: true },
             { label: _('Dec. Threshold'), color: '#F44336', dashed: true },
             { label: _('Inc. Threshold'), color: '#FF9800', dashed: true }
         ];
+        if (isFlash) latLegendItems.splice(1, 0, { label: _('Latency (max)'), color: 'rgba(244, 67, 54, 0.5)' });
         // Bandwidth legend items (shared for UL and DL)
         var bwLegendItems = [
             { label: _('Rate Limit'), color: '#2196F3' },
@@ -2008,14 +2010,17 @@ return view.extend({
         var dlLegend = document.querySelector('.autorate-dl-legend');
         if (dlLegend) this.buildChartLegend(dlLegend, bwLegendItems);
         
-        // Draw latency chart
+        // Draw latency chart (include max_lat spike series for flash data)
         var latCanvas = document.querySelector('.autorate-latency-canvas');
         if (latCanvas && latCanvas.clientWidth > 0) {
+            var latSeries = [
+                { data: latData, color: '#2196F3', width: 1.5 },
+                { data: blData, color: '#4CAF50', dashed: true, width: 1 }
+            ];
+            if (isFlash && maxLatData.length > 0)
+                latSeries.splice(0, 0, { data: maxLatData, color: 'rgba(244, 67, 54, 0.5)', width: 1, fill: 'rgba(244, 67, 54, 0.08)' });
             TimeSeriesChart.draw(latCanvas, {
-                series: [
-                    { data: latData, color: '#2196F3', width: 1.5 },
-                    { data: blData, color: '#4CAF50', dashed: true, width: 1 }
-                ],
+                series: latSeries,
                 hLines: [
                     { value: lastBl + decThrMs, color: '#F44336', dashed: true, width: 1 },
                     { value: lastBl + incThrMs, color: '#FF9800', dashed: true, width: 1 }
