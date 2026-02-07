@@ -362,7 +362,7 @@ get_autorate_stats() {
         history="[${history}]"
     fi
     
-    # Convert Flash CSV history to JSON (30 days, hourly averages)
+    # Convert Flash CSV history to JSON (30 days, 10-min bucket summaries)
     # Format: [[ts,avg_ul,avg_dl,avg_a_ul,avg_a_dl,avg_lat,max_lat,avg_bl,avg_ulp,avg_dlp], ...]
     local flash_history="[]"
     if [ -f "/etc/qosmate.d/autorate_hourly.csv" ] && [ -s "/etc/qosmate.d/autorate_hourly.csv" ]; then
