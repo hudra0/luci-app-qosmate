@@ -2007,26 +2007,37 @@ return view.extend({
             rawHistory = rawHistory.filter(function(h) { return h[0] >= cutoff; });
         }
         
-        // Show info hint when data is incomplete for selected range
+        // Show info hint for long-range aggregation and incomplete history
         var infoEl = document.querySelector('.autorate-data-info');
         if (infoEl) {
+            var rangeNote = '';
+            var availabilityNote = '';
+            
+            if (isFlash) {
+                rangeNote = _('For ranges above 60 minutes, recent data (last 60 min) is high-resolution, while older points are aggregated and less precise. "Latency (max)" highlights spikes that average latency may hide.');
+            }
+            
             if (isFlash && rawHistory.length < 2) {
-                infoEl.textContent = _('No hourly history available yet. Data is consolidated once per hour.');
-                infoEl.style.display = '';
+                availabilityNote = _('No hourly history available yet. Data is consolidated once per hour.');
             } else if (isFlash && rawHistory.length > 0) {
                 var dataSpanHours = Math.round((rawHistory[rawHistory.length - 1][0] - rawHistory[0][0]) / 3600);
                 var requestedHours = Math.round(maxAge / 3600);
                 if (dataSpanHours < requestedHours * 0.9) {
-                    infoEl.textContent = _('Showing %s of data (requested %s). History grows over time.')
+                    availabilityNote = _('Showing %s of data (requested %s). History grows over time.')
                         .format(dataSpanHours <= 24 ? dataSpanHours + 'h' : Math.round(dataSpanHours / 24) + 'd',
                                 requestedHours <= 24 ? requestedHours + 'h' : Math.round(requestedHours / 24) + 'd');
-                    infoEl.style.display = '';
-                } else {
-                    infoEl.style.display = 'none';
                 }
-            } else {
-                infoEl.style.display = 'none';
             }
+            
+            if (availabilityNote && rangeNote)
+                infoEl.textContent = availabilityNote + ' ' + rangeNote;
+            else
+                infoEl.textContent = availabilityNote || rangeNote;
+            
+            if (infoEl.textContent)
+                infoEl.style.display = '';
+            else
+                infoEl.style.display = 'none';
         }
         
         // Update status panel
