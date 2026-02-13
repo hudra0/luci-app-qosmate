@@ -15,6 +15,14 @@ debug_log() {
     fi
 }
 
+# Return a safe unsigned integer for JSON number fields
+json_uint_or_zero() {
+    case "$1" in
+        ''|*[!0-9]*) printf '0' ;;
+        *) printf '%s' "$1" ;;
+    esac
+}
+
 # Function to safely get JSON from tc command
 get_tc_json() {
     local output
@@ -317,6 +325,14 @@ get_autorate_stats() {
                 dl_load_pct) _ar_dlp="$_val" ;;
             esac
         done < "/tmp/qosmate-autorate-state"
+        _ar_ul=$(json_uint_or_zero "$_ar_ul")
+        _ar_dl=$(json_uint_or_zero "$_ar_dl")
+        _ar_aul=$(json_uint_or_zero "$_ar_aul")
+        _ar_adl=$(json_uint_or_zero "$_ar_adl")
+        _ar_lat=$(json_uint_or_zero "$_ar_lat")
+        _ar_bl=$(json_uint_or_zero "$_ar_bl")
+        _ar_ulp=$(json_uint_or_zero "$_ar_ulp")
+        _ar_dlp=$(json_uint_or_zero "$_ar_dlp")
         current=$(printf '{"ul_rate":%s,"dl_rate":%s,"achieved_ul":%s,"achieved_dl":%s,"latency":%s,"baseline":%s,"ul_load_pct":%s,"dl_load_pct":%s}' \
             "$_ar_ul" "$_ar_dl" "$_ar_aul" "$_ar_adl" "$_ar_lat" "$_ar_bl" "$_ar_ulp" "$_ar_dlp")
     fi
@@ -346,6 +362,15 @@ get_autorate_stats() {
     # Convert thresholds to tenths of ms (matching daemon's internal format)
     dec_thr=$((dec_thr * 10))
     inc_thr=$((inc_thr * 10))
+
+    base_ul=$(json_uint_or_zero "$base_ul")
+    base_dl=$(json_uint_or_zero "$base_dl")
+    min_ul=$(json_uint_or_zero "$min_ul")
+    min_dl=$(json_uint_or_zero "$min_dl")
+    max_ul=$(json_uint_or_zero "$max_ul")
+    max_dl=$(json_uint_or_zero "$max_dl")
+    dec_thr=$(json_uint_or_zero "$dec_thr")
+    inc_thr=$(json_uint_or_zero "$inc_thr")
     
     local config
     config=$(printf '{"base_ul":%s,"base_dl":%s,"min_ul":%s,"min_dl":%s,"max_ul":%s,"max_dl":%s,"decrease_threshold":%s,"increase_threshold":%s}' \
@@ -356,9 +381,13 @@ get_autorate_stats() {
     local history="[]"
     if [ -f "/tmp/qosmate-autorate-history" ] && [ -s "/tmp/qosmate-autorate-history" ]; then
         history=$(awk -F',' '{
+            for(i=1; i<=9; i++) {
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i)
+                if($i !~ /^[0-9]+$/) $i=0
+            }
             if(NR>1) printf ","
             printf "[%s,%s,%s,%s,%s,%s,%s,%s,%s]",$1,$2,$3,$4,$5,$6,$7,$8,$9
-        } END { if(NR==0) printf "" }' "/tmp/qosmate-autorate-history")
+        }' "/tmp/qosmate-autorate-history")
         history="[${history}]"
     fi
     
@@ -367,9 +396,13 @@ get_autorate_stats() {
     local flash_history="[]"
     if [ -f "/etc/qosmate.d/autorate_hourly.csv" ] && [ -s "/etc/qosmate.d/autorate_hourly.csv" ]; then
         flash_history=$(awk -F',' '{
+            for(i=1; i<=10; i++) {
+                gsub(/^[[:space:]]+|[[:space:]]+$/, "", $i)
+                if($i !~ /^[0-9]+$/) $i=0
+            }
             if(NR>1) printf ","
             printf "[%s,%s,%s,%s,%s,%s,%s,%s,%s,%s]",$1,$2,$3,$4,$5,$6,$7,$8,$9,$10
-        } END { if(NR==0) printf "" }' "/etc/qosmate.d/autorate_hourly.csv")
+        }' "/etc/qosmate.d/autorate_hourly.csv")
         flash_history="[${flash_history}]"
     fi
     
