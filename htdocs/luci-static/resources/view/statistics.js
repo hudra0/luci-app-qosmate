@@ -1974,7 +1974,9 @@ return view.extend({
             // Bridge: extend last flash value to RAM start for seamless visual transition
             if (rawHistory.length > 0) {
                 var last = rawHistory[rawHistory.length - 1];
-                rawHistory.push([oldestRamTs, last[1], last[2], last[3], last[4],
+                // Use a timestamp just before RAM start to avoid duplicate-x artifacts
+                var bridgeTs = oldestRamTs > last[0] ? (oldestRamTs - 1) : oldestRamTs;
+                rawHistory.push([bridgeTs, last[1], last[2], last[3], last[4],
                                  last[5], last[6], last[7], last[8], last[9]]);
             }
             // Convert RAM [ts,ul,dl,a_ul,a_dl,lat,bl,ulp,dlp] to flash format
@@ -1982,6 +1984,20 @@ return view.extend({
             rawHistory = rawHistory.concat(ar.history.map(function(h) {
                 return [h[0], h[1], h[2], h[3], h[4], h[5], h[5], h[6], h[7], h[8]];
             }));
+        }
+        
+        // Ensure chronological order and collapse duplicate timestamps.
+        // Duplicate timestamps can produce crossing/looping visual artifacts in canvas line rendering.
+        if (rawHistory.length > 1) {
+            rawHistory.sort(function(a, b) { return (+a[0]) - (+b[0]); });
+            var normalized = [rawHistory[0]];
+            for (var ri = 1; ri < rawHistory.length; ri++) {
+                var prev = normalized[normalized.length - 1];
+                var curH = rawHistory[ri];
+                if ((+prev[0]) === (+curH[0])) normalized[normalized.length - 1] = curH;
+                else normalized.push(curH);
+            }
+            rawHistory = normalized;
         }
         
         // Filter data by requested time range
