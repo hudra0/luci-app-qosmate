@@ -158,15 +158,21 @@ var TimeSeriesChart = {
             ctx.fillText(config.yFmt ? config.yFmt(v) : String(v), pad.left - 5, y + 3);
         });
 
-        // X axis (relative time)
+        // X axis (relative time with time-aware ticks)
         ctx.textAlign = 'center';
-        this._ticks(xMin, xMax, 6).forEach(function(v) {
+        this._timeTicks(xMin, xMax, 6).forEach(function(v) {
             var x = xS(v);
             ctx.strokeStyle = '#e0e0e0';
             ctx.lineWidth = 0.5;
             ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + ch); ctx.stroke();
             var ago = Math.round(xMax - v);
-            ctx.fillText(ago <= 0 ? 'now' : ago < 60 ? '-' + ago + 's' : '-' + Math.round(ago / 60) + 'min', x, pad.top + ch + 15);
+            var label;
+            if (ago <= 0) label = 'now';
+            else if (ago < 120) label = '-' + ago + 's';
+            else if (ago < 5400) label = '-' + Math.round(ago / 60) + 'min';
+            else if (ago < 172800) { var h = ago / 3600; label = '-' + (h % 1 === 0 ? h.toFixed(0) : h.toFixed(1)) + 'h'; }
+            else { var d = ago / 86400; label = '-' + (d % 1 === 0 ? d.toFixed(0) : d.toFixed(1)) + 'd'; }
+            ctx.fillText(label, x, pad.top + ch + 15);
         });
 
         // Chart border
@@ -225,6 +231,24 @@ var TimeSeriesChart = {
         var ticks = [];
         for (var v = Math.ceil(min / step) * step; v <= max; v += step)
             ticks.push(Math.round(v * 1000) / 1000);
+        return ticks;
+    },
+
+    // Time-aware tick generation: picks clean second/minute/hour/day intervals
+    _timeTicks: function(min, max, count) {
+        var span = max - min;
+        if (span <= 0) return [max];
+        var steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800,
+                     3600, 7200, 10800, 21600, 43200, 86400, 172800, 432000, 604800];
+        var ideal = span / count;
+        var step = steps[steps.length - 1];
+        for (var i = 0; i < steps.length; i++) {
+            if (steps[i] >= ideal) { step = steps[i]; break; }
+        }
+        var ticks = [];
+        var maxAgo = Math.floor(span / step) * step;
+        for (var ago = maxAgo; ago >= 0; ago -= step)
+            ticks.push(max - ago);
         return ticks;
     }
 };
@@ -1940,6 +1964,25 @@ return view.extend({
         var rangeSec = { '60m': 3600, '6h': 21600, '24h': 86400, '7d': 604800, '30d': 2592000 };
         var maxAge = rangeSec[range] || 3600;
         var rawHistory = isFlash ? (ar.flash_history || []) : (ar.history || []);
+        
+        // For flash views, replace overlapping flash data with full-resolution RAM data
+        // This gives the full 60min of RAM detail and avoids visual artifacts at the boundary
+        if (isFlash && ar.history && ar.history.length > 0) {
+            var oldestRamTs = ar.history[0][0];
+            // Keep only flash entries older than the RAM window
+            rawHistory = rawHistory.filter(function(h) { return h[0] < oldestRamTs; });
+            // Bridge: extend last flash value to RAM start for seamless visual transition
+            if (rawHistory.length > 0) {
+                var last = rawHistory[rawHistory.length - 1];
+                rawHistory.push([oldestRamTs, last[1], last[2], last[3], last[4],
+                                 last[5], last[6], last[7], last[8], last[9]]);
+            }
+            // Convert RAM [ts,ul,dl,a_ul,a_dl,lat,bl,ulp,dlp] to flash format
+            // by duplicating lat as max_lat: [ts,ul,dl,a_ul,a_dl,lat,lat,bl,ulp,dlp]
+            rawHistory = rawHistory.concat(ar.history.map(function(h) {
+                return [h[0], h[1], h[2], h[3], h[4], h[5], h[5], h[6], h[7], h[8]];
+            }));
+        }
         
         // Filter data by requested time range
         if (rawHistory.length > 0) {
