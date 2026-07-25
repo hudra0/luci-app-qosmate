@@ -50,6 +50,27 @@ function isSfoEnabled() {
     return uci.get('firewall', '@defaults[0]', 'flow_offloading') === '1';
 }
 
+// The auto-setup runs detached, because a speed test regularly takes longer than uhttpd's
+// script_timeout (60s by default) and a request waiting for the whole run gets killed. Progress is
+// followed in the output file, which the backend ends with the AUTO_SETUP_DONE marker.
+function pollAutoSetupOutput(outputFile, tries) {
+    return fs.read(outputFile).catch(function() { return ''; }).then(function(output) {
+        if (/^AUTO_SETUP_DONE/m.test(output))
+            return output;
+
+        if (tries <= 0)
+            return Promise.reject(new Error(_('Auto setup did not finish within 5 minutes.')));
+
+        var status = document.getElementById('qosmate-auto-setup-status');
+        var lines = output.replace(/\r/g, '\n').trim().split('\n');
+        if (status && lines[lines.length - 1])
+            status.textContent = lines[lines.length - 1];
+
+        return new Promise(function(resolve) { window.setTimeout(resolve, 2000); })
+            .then(function() { return pollAutoSetupOutput(outputFile, tries - 1); });
+    });
+}
+
 function fetchVersionInfo() {
     return fs.exec_direct('/etc/init.d/qosmate', ['check_version'])
         .then(function(output) {
@@ -615,16 +636,23 @@ return view.extend({
                         'click': ui.createHandlerFn(this, function() {
                             var gamingIp = document.getElementById('gaming_ip').value;
                             ui.showModal(_('Running Auto Setup'), [
-                                E('p', { 'class': 'spinning' }, _('Please wait while the auto setup is in progress...')),
+                                E('p', { 'class': 'spinning', 'id': 'qosmate-auto-setup-status' }, _('Please wait while the auto setup is in progress...')),
                                 E('div', { 'style': 'margin-top: 1em; border-top: 1px solid #ccc; padding-top: 1em;' }, [
                                     E('p', { 'style': 'font-weight: bold;' }, _('Note:')),
                                     E('p', _('Router-based speed tests may underestimate actual speeds. These results serve as a starting point and may require manual adjustment for optimal performance.'))
                                 ])
                             ]);
-                            return fs.exec_direct('/etc/init.d/qosmate', ['auto_setup_noninteractive', gamingIp])
+                            return fs.exec_direct('/etc/init.d/qosmate', ['auto_setup_detached', gamingIp])
                                 .then(function(res) {
-                                    var outputFile = res.trim();
-                                    return fs.read(outputFile).then(function(output) {
+                                    var outputFile = (res || '').trim();
+
+                                    // a backend without auto_setup_detached prints its usage instead of a path
+                                    var run = (outputFile.charAt(0) === '/')
+                                        ? pollAutoSetupOutput(outputFile, 150)
+                                        : fs.exec_direct('/etc/init.d/qosmate', ['auto_setup_noninteractive', gamingIp])
+                                            .then(function(res2) { return fs.read((res2 || '').trim()); });
+
+                                    return run.then(function(output) {
                                         ui.hideModal();
                                         
                                         var wanInterface = output.match(/Detected WAN interface: (.+)/);
