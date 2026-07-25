@@ -50,6 +50,27 @@ function isSfoEnabled() {
     return uci.get('firewall', '@defaults[0]', 'flow_offloading') === '1';
 }
 
+// The auto-setup runs detached, because a speed test regularly takes longer than uhttpd's
+// script_timeout (60s by default) and a request waiting for the whole run gets killed. Progress is
+// followed in the output file, which the backend ends with the AUTO_SETUP_DONE marker.
+function pollAutoSetupOutput(outputFile, tries) {
+    return fs.read(outputFile).catch(function() { return ''; }).then(function(output) {
+        if (/^AUTO_SETUP_DONE/m.test(output))
+            return output;
+
+        if (tries <= 0)
+            return Promise.reject(new Error(_('Auto setup did not finish within 5 minutes.')));
+
+        var status = document.getElementById('qosmate-auto-setup-status');
+        var lines = output.replace(/\r/g, '\n').trim().split('\n');
+        if (status && lines[lines.length - 1])
+            status.textContent = lines[lines.length - 1];
+
+        return new Promise(function(resolve) { window.setTimeout(resolve, 2000); })
+            .then(function() { return pollAutoSetupOutput(outputFile, tries - 1); });
+    });
+}
+
 function fetchVersionInfo() {
     return fs.exec_direct('/etc/init.d/qosmate', ['check_version'])
         .then(function(output) {
@@ -615,35 +636,52 @@ return view.extend({
                         'click': ui.createHandlerFn(this, function() {
                             var gamingIp = document.getElementById('gaming_ip').value;
                             ui.showModal(_('Running Auto Setup'), [
-                                E('p', { 'class': 'spinning' }, _('Please wait while the auto setup is in progress...')),
+                                E('p', { 'class': 'spinning', 'id': 'qosmate-auto-setup-status' }, _('Please wait while the auto setup is in progress...')),
                                 E('div', { 'style': 'margin-top: 1em; border-top: 1px solid #ccc; padding-top: 1em;' }, [
                                     E('p', { 'style': 'font-weight: bold;' }, _('Note:')),
                                     E('p', _('Router-based speed tests may underestimate actual speeds. These results serve as a starting point and may require manual adjustment for optimal performance.'))
                                 ])
                             ]);
-                            return fs.exec_direct('/etc/init.d/qosmate', ['auto_setup_noninteractive', gamingIp])
+                            return fs.exec_direct('/etc/init.d/qosmate', ['auto_setup_detached', gamingIp])
                                 .then(function(res) {
-                                    var outputFile = res.trim();
-                                    return fs.read(outputFile).then(function(output) {
+                                    var outputFile = (res || '').trim();
+
+                                    // a backend without auto_setup_detached prints its usage instead of a path
+                                    var run = (outputFile.charAt(0) === '/')
+                                        ? pollAutoSetupOutput(outputFile, 150)
+                                        : fs.exec_direct('/etc/init.d/qosmate', ['auto_setup_noninteractive', gamingIp])
+                                            .then(function(res2) { return fs.read((res2 || '').trim()); });
+
+                                    return run.then(function(output) {
                                         ui.hideModal();
                                         
                                         var wanInterface = output.match(/Detected WAN interface: (.+)/);
-                                        var downloadSpeed = output.match(/Download speed: (.+) Mbit\/s/);
-                                        var uploadSpeed = output.match(/Upload speed: (.+) Mbit\/s/);
-                                        var downrate = output.match(/DOWNRATE: (.+) kbps/);
-                                        var uprate = output.match(/UPRATE: (.+) kbps/);
+                                        var downloadSpeed = output.match(/Download speed: ([\d.]+) Mbit\/s/);
+                                        var uploadSpeed = output.match(/Upload speed: ([\d.]+) Mbit\/s/);
+                                        var downrate = output.match(/DOWNRATE: (\d+) kbps/);
+                                        var uprate = output.match(/UPRATE: (\d+) kbps/);
 
                                         if (!downloadSpeed || !uploadSpeed || parseFloat(downloadSpeed[1]) <= 0 || parseFloat(uploadSpeed[1]) <= 0 ||
                                         !downrate || !uprate || parseInt(downrate[1]) <= 0 || parseInt(uprate[1]) <= 0) {
-                                        ui.addNotification(null, E('p', _('Invalid speed test results. Please try again or set values manually.')), 'error');
+                                        ui.addNotification(null, [
+                                            E('p', _('Invalid speed test results. Please try again or set values manually.')),
+                                            E('pre', { 'style': 'white-space: pre-wrap; max-height: 12em; overflow: auto;' },
+                                                output.trim().split('\n').slice(-10).join('\n'))
+                                        ], 'error');
                                         return;
-                                        }                                        
-                                        var gamingRules = output.match(/Gaming device rules added for IP: (.+)/);
+                                        }
+
+                                        // 'rules?' keeps this working with backends that report a single rule
+                                        var gamingRules = output.match(/Gaming device rules? added for IP: (.+)/);
+                                        var existingRule = output.match(/A rule for IP (.+) already exists/);
+                                        var warnings = output.match(/^Warning: .+$/gm) || [];
         
                                         ui.showModal(_(''), [
                                             E('h2', { 'style': 'text-align:center; margin-bottom: 1em;' }, _('Auto Setup Results')),
                                             E('h3', { 'style': 'margin-bottom: 0.5em;' }, _('Speed Test Results')),
                                             E('p', { 'style': 'color: orange; margin-bottom: 1em;' }, _('Note: Router-based speed tests may underestimate actual speeds. For best results, consider running tests from a LAN device and manually entering the values. These results serve as a starting point.')),
+                                            warnings.length ? E('div', { 'class': 'alert-message warning', 'style': 'margin-bottom: 1em;' },
+                                                warnings.map(function(line) { return E('p', {}, line.replace(/^Warning: /, '')); })) : '',
                                             E('div', { 'style': 'display: table; width: 100%;' }, [
                                                 E('div', { 'style': 'display: table-row;' }, [
                                                     E('div', { 'style': 'display: table-cell; padding: 5px; font-weight: bold;' }, _('WAN Interface')),
@@ -669,9 +707,10 @@ return view.extend({
                                                     E('div', { 'style': 'display: table-cell; padding: 5px;' }, uprate ? uprate[1] + ' kbps' : _('Not set'))
                                                 ])
                                             ]),
-                                            gamingRules ? E('div', { 'style': 'margin-top: 1em;' }, [
+                                            (gamingRules || existingRule) ? E('div', { 'style': 'margin-top: 1em;' }, [
                                                 E('div', { 'style': 'font-weight: bold;' }, _('Gaming Rules')),
-                                                E('div', {}, _('Added for IP: ') + gamingRules[1])
+                                                E('div', {}, gamingRules ? _('Added for IP: ') + gamingRules[1]
+                                                                         : _('Rule already exists for IP: ') + existingRule[1])
                                             ]) : '',
                                             E('div', { 'class': 'right', 'style': 'margin-top: 1em;' }, [
                                                 E('button', {
