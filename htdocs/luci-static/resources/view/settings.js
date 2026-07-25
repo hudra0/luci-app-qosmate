@@ -53,13 +53,17 @@ function isSfoEnabled() {
 // The auto-setup runs detached, because a speed test regularly takes longer than uhttpd's
 // script_timeout (60s by default) and a request waiting for the whole run gets killed. Progress is
 // followed in the output file, which the backend ends with the AUTO_SETUP_DONE marker.
-function pollAutoSetupOutput(outputFile, tries) {
-    return fs.read(outputFile).catch(function() { return ''; }).then(function(output) {
+function pollAutoSetupOutput(outputFile, tries, lastError) {
+    // read_direct, because ubus file.read stops at the first NUL byte and the output file can
+    // contain NUL padding while it is still being written
+    return fs.read_direct(outputFile).catch(function(err) { lastError = err; return ''; }).then(function(output) {
         if (/^AUTO_SETUP_DONE/m.test(output))
             return output;
 
         if (tries <= 0)
-            return Promise.reject(new Error(_('Auto setup did not finish within 5 minutes.')));
+            return Promise.reject(new Error(lastError
+                ? _('Auto setup did not finish, last error: ') + lastError
+                : _('Auto setup did not finish within 5 minutes.')));
 
         var status = document.getElementById('qosmate-auto-setup-status');
         var lines = output.replace(/\r/g, '\n').trim().split('\n');
@@ -67,7 +71,7 @@ function pollAutoSetupOutput(outputFile, tries) {
             status.textContent = lines[lines.length - 1];
 
         return new Promise(function(resolve) { window.setTimeout(resolve, 2000); })
-            .then(function() { return pollAutoSetupOutput(outputFile, tries - 1); });
+            .then(function() { return pollAutoSetupOutput(outputFile, tries - 1, lastError); });
     });
 }
 
@@ -650,7 +654,7 @@ return view.extend({
                                     var run = (outputFile.charAt(0) === '/')
                                         ? pollAutoSetupOutput(outputFile, 150)
                                         : fs.exec_direct('/etc/init.d/qosmate', ['auto_setup_noninteractive', gamingIp])
-                                            .then(function(res2) { return fs.read((res2 || '').trim()); });
+                                            .then(function(res2) { return fs.read_direct((res2 || '').trim()); });
 
                                     return run.then(function(output) {
                                         ui.hideModal();
