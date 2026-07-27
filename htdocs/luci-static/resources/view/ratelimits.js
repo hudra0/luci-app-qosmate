@@ -5,6 +5,7 @@
 'require uci';
 'require fs';
 'require rpc';
+'require validation';
 
 var callInitAction = rpc.declare({
     object: 'luci',
@@ -12,6 +13,17 @@ var callInitAction = rpc.declare({
     params: ['name', 'action'],
     expect: { result: false }
 });
+
+// Bridges LuCI's validation types into plain functions; see LuCI.validation docs
+var stubValidator = {
+    factory: validation,
+    apply: function(type, value, args) {
+        if (value != null)
+            this.value = value;
+        return validation.types[type].apply(this, args);
+    },
+    assert: function(condition) { return !!condition; }
+};
 
 // Validation helper for IP/IPv6 targets
 function validateTargetField(section_id, value) {
@@ -42,6 +54,14 @@ function validateTargetField(section_id, value) {
         var macRegex = /^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/;
         if (macRegex.test(valueToValidate)) {
             return _('MAC addresses not supported: ') + v + _(' (use IP addresses instead)');
+        }
+        
+        // nftables accepts address ranges wherever a plain address is allowed
+        if (valueToValidate.indexOf('-') !== -1) {
+            if (!stubValidator.apply('iprange', valueToValidate)) {
+                return _('Invalid IP range: ') + v;
+            }
+            continue;
         }
         
         // Validate IP/CIDR/IPv6
