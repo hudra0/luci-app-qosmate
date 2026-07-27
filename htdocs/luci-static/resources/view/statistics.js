@@ -1492,6 +1492,21 @@ return view.extend({
                 infoContainer.appendChild(row);
             }
             
+            // A rate of 0 disables that direction, so one of the tabs stays empty on purpose
+            var statsUpRate = parseInt(uci.get('qosmate', 'settings', 'UPRATE') || '0');
+            var statsDownRate = parseInt(uci.get('qosmate', 'settings', 'DOWNRATE') || '0');
+            if (statsUpRate === 0 || statsDownRate === 0) {
+                var dirText = statsUpRate === 0 && statsDownRate === 0
+                    ? _('disabled in both directions (both rates are 0)')
+                    : (statsDownRate === 0 ? _('egress only (DOWNRATE=0, no ingress statistics)')
+                                           : _('ingress only (UPRATE=0, no egress statistics)'));
+                var row = E('div', { 'style': 'margin-right: 1.5em; margin-bottom: 0.3em; color: orange;' });
+                row.appendChild(E('span', { 'style': 'font-weight: bold;' }, _('Shaping:')));
+                row.appendChild(document.createTextNode(' '));
+                row.appendChild(E('span', {}, dirText));
+                infoContainer.appendChild(row);
+            }
+            
             // Add CAKE-specific or HFSC-specific info
             if (qosStats.root_qdisc === 'cake') {
                 if (qosStats.priority_queue_ingress) {
