@@ -6,6 +6,7 @@
 'require rpc';
 'require fs';
 'require poll';
+'require validation';
 'require tools.widgets as widgets';
 
 var callInitAction = rpc.declare({
@@ -20,6 +21,17 @@ var callRuleCounters = rpc.declare({
     method: 'getRuleCounters',
     expect: { rule_counters: [] }
 });
+
+// Bridges LuCI's validation types into plain functions; see LuCI.validation docs
+var stubValidator = {
+    factory: validation,
+    apply: function(type, value, args) {
+        if (value != null)
+            this.value = value;
+        return validation.types[type].apply(this, args);
+    },
+    assert: function(condition) { return !!condition; }
+};
 
 // IPv6 suffix matching validation helpers
 function isIPv6SuffixFormat(value) {
@@ -111,6 +123,17 @@ function validateIPField(section_id, value) {
                 return _('Invalid IPv6 suffix format. Use ::suffix/::mask with valid IPv6 segments (e.g. ::1234:5678/::ffff:ffff)');
             }
             hasIPv6 = true;
+        }
+        // nftables accepts address ranges wherever a plain address is allowed
+        else if (valueToValidate.indexOf('-') !== -1) {
+            if (!stubValidator.apply('iprange', valueToValidate)) {
+                return _('Invalid IP range: ') + v;
+            }
+            if (valueToValidate.indexOf(':') !== -1) {
+                hasIPv6 = true;
+            } else {
+                hasIPv4 = true;
+            }
         }
         else {
             if (!ipCidrRegex.test(valueToValidate)) {
@@ -448,7 +471,7 @@ return view.extend({
 
         o = s.taboption('general', form.DynamicList, 'src_ip', _('Source IP'));
         o.datatype = 'string';
-        o.placeholder = _('IP address, @setname or ::suffix/::mask');
+        o.placeholder = _('IP address, range, @setname or ::suffix/::mask');
         o.rmempty = true;
         o.validate = function(section_id, value) {
             return validateIPField(section_id, value);
@@ -490,7 +513,7 @@ return view.extend({
         
         o = s.taboption('general', form.DynamicList, 'dest_ip', _('Destination IP'));
         o.datatype = 'string';
-        o.placeholder = _('IP address, @setname or ::suffix/::mask');
+        o.placeholder = _('IP address, range, @setname or ::suffix/::mask');
         o.rmempty = true;
         o.validate = function(section_id, value) {
             return validateIPField(section_id, value);

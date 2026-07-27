@@ -73,15 +73,15 @@ return view.extend({
         o.rmempty = false;
 
         o = s.option(form.DynamicList, 'ip4', _('IPv4 Addresses'));
-        o.datatype = 'ip4addr';
+        o.datatype = 'or(ip4addr,iprange4)';
         o.rmempty = true;
-        o.placeholder = _('Add IPv4 address or subnet');
+        o.placeholder = _('Add IPv4 address, subnet or range');
         o.depends({ mode: 'static', family: 'ipv4' });
 
         o = s.option(form.DynamicList, 'ip6', _('IPv6 Addresses'));
-        o.datatype = 'ip6addr';
+        o.datatype = 'or(ip6addr,iprange6)';
         o.rmempty = true;
-        o.placeholder = _('Add IPv6 address or subnet');
+        o.placeholder = _('Add IPv6 address, subnet or range');
         o.depends({ mode: 'static', family: 'ipv6' });
 
         o = s.option(form.Value, 'timeout', _('Timeout'));
