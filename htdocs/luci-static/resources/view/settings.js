@@ -7,7 +7,6 @@
 'require fs';
 'require poll';
 'require tools.widgets as widgets';
-
 const UI_VERSION = '1.2.0';
 const UI_UPD_CHANNEL = 'release';
 
@@ -554,7 +553,7 @@ return view.extend({
                 }
                 
                 statusHtml.appendChild(
-                    E('div', { 'style': 'display: flex; align-items: center; gap: 4px;' }, [
+                    E('div', { 'style': 'display: flex; align-items: center; gap: 4px;', 'title': detail }, [
                         E('span', { 
                             'style': 'color: ' + color + '; font-size: 15px; font-weight: bold; min-width: 20px;'
                         }, icon),
@@ -780,11 +779,7 @@ return view.extend({
                 opt.validate = function(section_id, value) {
                     if (value === '' || value === null) return true;
                     if (!/^\d+$/.test(value)) return _('Must be a non-negative integer or empty');
-                    var intValue = parseInt(value, 10);
-                    var rootQdisc = this.section.formvalue(section_id, 'ROOT_QDISC');
-                    if (intValue === 0 && rootQdisc === 'hfsc') {
-                        return _('Value must be greater than 0 for HFSC');
-                    }
+                    // 0 is valid for every qdisc: it disables shaping for that direction
                     return true;
                 };
             }
@@ -797,8 +792,8 @@ return view.extend({
         o.editable = true;
         o.default = wanInterface;
 
-        createOption('DOWNRATE', _('Download Rate (kbps)'), _('Set the download rate in kbps'), _('Default: 90000'), 'uinteger');
-        createOption('UPRATE', _('Upload Rate (kbps)'), _('Set the upload rate in kbps'), _('Default: 45000'), 'uinteger');
+        createOption('DOWNRATE', _('Download Rate (kbps)'), _('Set the download rate in kbps. 0 disables ingress shaping (no IFB device is created).'), _('Default: 90000'), 'uinteger');
+        createOption('UPRATE', _('Upload Rate (kbps)'), _('Set the upload rate in kbps. 0 disables egress shaping.'), _('Default: 45000'), 'uinteger');
         
         // Function to get QDisc description based on value
         function getQdiscDescriptionForValue(value) {
@@ -878,6 +873,37 @@ return view.extend({
             } else {
                 return E('div');
             }
+        };
+
+        // Notice when a direction is not shaped (rate 0, same convention as sqm-scripts)
+        o = s_basic.option(form.DummyValue, '_shaping_direction', _('Shaping Direction'));
+        o.rawhtml = true;
+        o.render = function(section_id) {
+            var downrate = parseInt(uci.get('qosmate', 'settings', 'DOWNRATE') || '0');
+            var uprate = parseInt(uci.get('qosmate', 'settings', 'UPRATE') || '0');
+            if (downrate > 0 && uprate > 0) return E('div');
+
+            var lines = [];
+            if (downrate === 0 && uprate === 0) {
+                lines.push(E('strong', {}, _('No shaping active: both rates are 0')));
+                lines.push(E('br'));
+                lines.push(_('Only nftables DSCP marking is applied, no queues are created.'));
+            } else if (downrate === 0) {
+                lines.push(E('strong', {}, _('Download shaping disabled (DOWNRATE=0)')));
+                lines.push(E('br'));
+                lines.push(_('No IFB device is created. TCP bulk detection is off because its thresholds derive from the download rate, CAKE ingress options have no effect, and incoming packets carry no DSCP.'));
+                lines.push(E('br'));
+                lines.push(_('Set ACK_FILTER_EGRESS explicitly in the CAKE tab: "auto" cannot decide without a download rate.'));
+            } else {
+                lines.push(E('strong', {}, _('Upload shaping disabled (UPRATE=0)')));
+                lines.push(E('br'));
+                lines.push(_('No egress qdisc is created, so traffic classification only affects the download queue.'));
+            }
+
+            return E('div', { 'class': 'cbi-value' }, [
+                E('label', { 'class': 'cbi-value-title' }, E('span', { 'style': 'color: orange; font-weight: bold;' }, '⚠')),
+                E('div', { 'class': 'cbi-value-field', 'style': 'color: orange;' }, lines)
+            ]);
         };
 
         // Warning for bandwidth ratio

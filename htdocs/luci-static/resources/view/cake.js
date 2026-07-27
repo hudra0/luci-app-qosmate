@@ -10,6 +10,14 @@
 function addRelevanceInfo(description, settingName, rootQdisc) {
     var isRelevant = true;
     var note = '';
+
+    // A rate of 0 disables that direction, which makes its options ineffective
+    if (/INGRESS/.test(settingName) && parseInt(uci.get('qosmate', 'settings', 'DOWNRATE') || '0') === 0) {
+        return description + ' ⚠ Not used: ingress shaping is disabled (DOWNRATE=0)';
+    }
+    if (/EGRESS/.test(settingName) && parseInt(uci.get('qosmate', 'settings', 'UPRATE') || '0') === 0) {
+        return description + ' ⚠ Not used: egress shaping is disabled (UPRATE=0)';
+    }
     
     // Check basic ROOT_QDISC relevance
     if (rootQdisc !== 'cake' && rootQdisc !== 'hybrid') {
