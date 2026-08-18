@@ -187,6 +187,7 @@ return view.extend({
         };
 
         o = s.option(form.ListValue, 'NFT_HOOK', _('Nftables Hook'), _('Select the nftables hook point for the dscptag chain'));
+        o.value('prerouting', _('prerouting (Recommended for Clash / TProxy)'));
         o.value('forward', _('forward'));
         o.value('postrouting', _('postrouting'));
         o.default = 'forward';
