@@ -491,6 +491,9 @@ msgstr "TCP MSS"
 msgid "Nftables Hook"
 msgstr "Nftables 钩子"
 
+msgid "prerouting (Recommended for Clash / TProxy)"
+msgstr "prerouting (推荐与 Clash / TProxy 透明代理共用)"
+
 msgid "Select the nftables hook point for the dscptag chain"
 msgstr "为 dscptag 链选择 nftables 钩子点"
 
@@ -746,6 +749,91 @@ msgstr "不正确的规则可能会破坏网络功能。请谨慎使用。"
 msgid "QoSmate Connections"
 msgstr "QoSmate 连接"
 
+msgid "QoSmate Active Connections & Host Overview"
+msgstr "QoSmate 活动连接与主机总览"
+
+msgid "Active Connections"
+msgstr "活动连接数"
+
+msgid "Active Local Hosts"
+msgstr "活动局域网主机"
+
+msgid "Total Inbound Traffic"
+msgstr "入站总流量"
+
+msgid "Total Outbound Traffic"
+msgstr "出站总流量"
+
+msgid "Filter by Host IP / Hostname / Protocol..."
+msgstr "按主机 IP / 主机名 / 协议过滤..."
+
+msgid "Filter Remote IP / Port / Protocol / DSCP..."
+msgstr "按对端 IP / 端口 / 协议 / DSCP 过滤..."
+
+msgid "Click any host row to expand and inspect detailed top connections."
+msgstr "点击任意主机行可展开并查看该主机的连接明细与实时统计。"
+
+msgid "LAN Host"
+msgstr "局域网主机"
+
+msgid "Active Conns"
+msgstr "活动连接"
+
+msgid "Download (In)"
+msgstr "下载 (入站)"
+
+msgid "Upload (Out)"
+msgstr "上传 (出站)"
+
+msgid "Total Traffic"
+msgstr "总流量"
+
+msgid "DSCP Classes"
+msgstr "DSCP 类别"
+
+msgid "Actions"
+msgstr "操作"
+
+msgid "Details"
+msgstr "明细"
+
+msgid "Collapse"
+msgstr "收起"
+
+msgid "No active host connections recorded."
+msgstr "暂无记录到的活动主机连接。"
+
+msgid "Local Endpoint"
+msgstr "本地终端"
+
+msgid "Remote Endpoint"
+msgstr "远程对端"
+
+msgid "Connections for "
+msgstr "连接列表 - "
+
+msgid "total conns"
+msgstr "个活动连接"
+
+msgid "(Showing top %d by volume)"
+msgstr "（按流量显示前 %d 条）"
+
+msgid "No matching connection details found."
+msgstr "未找到匹配的连接明细。"
+
+msgid "Refresh"
+msgstr "刷新"
+
+msgid "Polling: "
+msgstr "轮询间隔: "
+
+msgid "Pause"
+msgstr "暂停"
+
+msgid "Resume"
+msgstr "继续"
+
+
 msgid "Filter by IP, IP:Port, Port, Protocol or DSCP"
 msgstr "通过 IP、IP:端口、端口、协议或 DSCP 过滤"
 
@@ -781,6 +869,27 @@ msgstr "目的地"
 
 msgid "DSCP"
 msgstr "DSCP"
+
+msgid "Host"
+msgstr "主机"
+
+msgid "1s"
+msgstr "1秒"
+
+msgid "2s (Default)"
+msgstr "2秒 (默认)"
+
+msgid "3s"
+msgstr "3秒"
+
+msgid "5s"
+msgstr "5秒"
+
+msgid "10s"
+msgstr "10秒"
+
+msgid "Paused"
+msgstr "已暂停"
 
 msgid "Bytes"
 msgstr "字节"

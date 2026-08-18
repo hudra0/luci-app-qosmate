@@ -30,6 +30,7 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_DATA) ./root/usr/share/rpcd/acl.d/luci-app-qosmate.json $(1)/usr/share/rpcd/acl.d/
 
 	$(INSTALL_BIN) ./root/usr/libexec/rpcd/luci.qosmate $(1)/usr/libexec/rpcd/
+	$(INSTALL_BIN) ./root/usr/libexec/rpcd/luci.qosmate_stats $(1)/usr/libexec/rpcd/
 endef
 
 # call BuildPackage - OpenWrt buildroot signature

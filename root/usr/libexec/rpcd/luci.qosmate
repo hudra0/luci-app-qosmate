@@ -2,7 +2,7 @@
 
 local jsonc = require "luci.jsonc"
 
--- Check if an IP address is private - not needed at the moment
+-- Check if an IP address is private/local
 local function is_private_ip(ip)
     if not ip or ip == "" then
         return false
@@ -10,144 +10,387 @@ local function is_private_ip(ip)
 
     if ip:match(":") then  -- IPv6
         -- Check for ULA (fc00::/7), link-local (fe80::/10), or loopback (::1)
-        return ip:match("^f[cd]") or ip:match("^fe80:") or ip == "::1"
+        return ip:match("^f[cd]") ~= nil or ip:match("^fe80:") ~= nil or ip == "::1"
     else  -- IPv4
-        local octets = {ip:match("(%d+)%.(%d+)%.(%d+)%.(%d+)")}
-        if not octets[1] then return false end
-        local first, second = tonumber(octets[1]), tonumber(octets[2])
-        -- Check for private IPv4 ranges: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+        local o1, o2 = ip:match("^(%d+)%.(%d+)%.")
+        if not o1 then return false end
+        local first, second = tonumber(o1), tonumber(o2)
+        -- 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8, 169.254.0.0/16, 100.64.0.0/10 (CGNAT)
         return (first == 10) or
                (first == 172 and second >= 16 and second <= 31) or
-               (first == 192 and second == 168)
+               (first == 192 and second == 168) or
+               (first == 127) or
+               (first == 169 and second == 254) or
+               (first == 100 and second >= 64 and second <= 127)
     end
 end
 
--- Parse a single connection line from nf_conntrack
-local function parse_connection(line)
-    local conn = {}
-    conn.layer3, conn.layer4, conn.protocol, conn.timeout = line:match("(%w+)%s+(%d+)%s+(%w+)%s+(%d+)")
-    if not (conn.layer3 and conn.layer4 and conn.protocol and conn.timeout) then
-        return nil
-    end
-
-    if conn.protocol == "icmp" or conn.protocol == "icmpv6" then
-        -- Handle ICMP and ICMPv6 protocols
-        conn.src, conn.dst, conn.type, conn.code, conn.id = 
-            line:match("src=(%S+)%s+dst=(%S+)%s+type=(%d+)%s+code=(%d+)%s+id=(%d+)")
-        conn.in_packets, conn.in_bytes = line:match("packets=(%d+)%s+bytes=(%d+)")
-        conn.out_packets, conn.out_bytes = conn.in_packets, conn.in_bytes
-        conn.sport, conn.dport = "-", "-"  -- ICMP doesn't use ports
-    else
-        -- Handle other protocols (e.g., TCP, UDP)
-        local src1, dst1, sport1, dport1, packets1, bytes1,
-              src2, dst2, sport2, dport2, packets2, bytes2 = 
-            line:match("src=(%S+)%s+dst=(%S+)%s+sport=(%d+)%s+dport=(%d+)%s+packets=(%d+)%s+bytes=(%d+).*src=(%S+)%s+dst=(%S+)%s+sport=(%d+)%s+dport=(%d+)%s+packets=(%d+)%s+bytes=(%d+)")
-        
-        -- Always use the first direction as the original
-        conn.src, conn.dst, conn.sport, conn.dport = src1, dst1, sport1, dport1
-        conn.out_packets, conn.in_packets = tonumber(packets1), tonumber(packets2)
-        conn.out_bytes, conn.in_bytes = tonumber(bytes1), tonumber(bytes2)
-    end
-
-    if not (conn.src and conn.dst) then
-        return nil
-    end
-
-    -- Extract additional connection information
-    conn.dscp = math.floor(tonumber(line:match("mark=(%d+)") or "0"))
-    conn.use = tonumber(line:match("use=(%d+)") or "0")
-    conn.timeout = tonumber(conn.timeout) or 0
-
-    -- Determine connection state
-    if line:match("%[ASSURED%]") then
-        conn.state = "ASSURED"
-    elseif line:match("%[UNREPLIED%]") then
-        conn.state = "UNREPLIED"
-    else
-        conn.state = "UNKNOWN"
-    end
-
-    return conn
-end
-
--- Retrieve all current connections from nf_conntrack
-local function get_connections()
-    local conn_list = {}
+-- Read hostnames from /etc/hosts and DHCP lease files
+local function get_hostnames()
+    local hostnames = {}
     
-    -- Read MAX_CONNECTIONS from config
-    local max_connections = 0
-    local config = io.popen("uci get qosmate.advanced.MAX_CONNECTIONS 2>/dev/null")
-    if config then
-        local value = config:read("*line")
-        config:close()
-        if value and value ~= "" then
-            max_connections = tonumber(value) or 0
+    -- 1. Read /etc/hosts
+    local f = io.open("/etc/hosts", "r")
+    if f then
+        for line in f:lines() do
+            local ip, host = line:match("^%s*(%S+)%s+(%S+)")
+            if ip and host and not ip:match("^#") and host ~= "localhost" then
+                hostnames[ip] = host
+            end
         end
-    end
-    
-    local f = io.open("/proc/net/nf_conntrack", "r")
-    if not f then
-        return {}, max_connections
+        f:close()
     end
 
-    local count = 0
-    
-    -- Read connections from nf_conntrack (with early exit if limited)
-    for line in f:lines() do
-        -- Early exit if we have a limit and reached it
-        if max_connections > 0 and count >= max_connections then
+    -- 2. Read /tmp/dhcp.leases or /var/dhcp.leases
+    for _, lease_path in ipairs({"/tmp/dhcp.leases", "/var/dhcp.leases", "/tmp/hosts/dhcp.leases"}) do
+        f = io.open(lease_path, "r")
+        if f then
+            for line in f:lines() do
+                -- format: timestamp mac ip hostname clientid
+                local ip, host = line:match("%S+%s+%S+%s+(%S+)%s+(%S+)")
+                if ip and host and host ~= "*" then
+                    hostnames[ip] = host
+                end
+            end
+            f:close()
             break
         end
-        
-        local conn = parse_connection(line)
-        if conn then
-            conn.total_bytes = (conn.in_bytes or 0) + (conn.out_bytes or 0)
-            table.insert(conn_list, conn)
-            count = count + 1
+    end
+
+    return hostnames
+end
+
+-- Fast extract connection info from nf_conntrack line
+local function extract_connection_raw(line)
+    -- Protocol and family extraction
+    local layer3, proto = line:match("^(%S+)%s+%d+%s+(%S+)")
+    if not (layer3 and proto) then return nil end
+
+    -- Extract timeout
+    local timeout = tonumber(line:match("%s(%d+)%s+[%w_]+%s+src=")) or tonumber(line:match("%s(%d+)%s+src=")) or 0
+
+    local src1, dst1, sport1, dport1, pkts1, bytes1
+    local src2, dst2, sport2, dport2, pkts2, bytes2
+
+    if proto == "icmp" or proto == "icmpv6" then
+        src1, dst1 = line:match("src=(%S+)%s+dst=(%S+)")
+        if not (src1 and dst1) then return nil end
+        local p, b = line:match("packets=(%d+)%s+bytes=(%d+)")
+        pkts1 = tonumber(p) or 0
+        bytes1 = tonumber(b) or 0
+        pkts2, bytes2 = 0, 0
+        sport1, dport1 = "-", "-"
+        sport2, dport2 = "-", "-"
+        src2, dst2 = dst1, src1
+    else
+        -- Match src, dst, sport, dport for direction 1
+        src1, dst1, sport1, dport1 = line:match("src=(%S+)%s+dst=(%S+)%s+sport=(%d+)%s+dport=(%d+)")
+        if not (src1 and dst1 and sport1 and dport1) then return nil end
+
+        -- Direction 2 (after the first dport)
+        local rest = line:match("dport=%d+(.*)$")
+        if rest then
+            src2, dst2, sport2, dport2 = rest:match("src=(%S+)%s+dst=(%S+)%s+sport=(%d+)%s+dport=(%d+)")
+        end
+        if not (src2 and dst2) then
+            src2, dst2 = dst1, src1
+            sport2, dport2 = dport1, sport1
+        end
+
+        -- Packets and bytes (direction 1)
+        pkts1, bytes1 = line:match("packets=(%d+)%s+bytes=(%d+)")
+        pkts1 = tonumber(pkts1) or 0
+        bytes1 = tonumber(bytes1) or 0
+
+        -- Packets and bytes (direction 2)
+        if rest then
+            pkts2, bytes2 = rest:match("packets=(%d+)%s+bytes=(%d+)")
+        end
+        pkts2 = tonumber(pkts2) or 0
+        bytes2 = tonumber(bytes2) or 0
+    end
+
+    local mark = tonumber(line:match("mark=(%d+)") or "0") or 0
+    local dscp = math.floor(mark % 64)
+
+    local state = "UNKNOWN"
+    if line:find("ASSURED") then
+        state = "ASSURED"
+    elseif line:find("UNREPLIED") then
+        state = "UNREPLIED"
+    end
+
+    local use = tonumber(line:match("use=(%d+)") or "0") or 0
+
+    return {
+        layer3 = layer3,
+        protocol = proto,
+        timeout = timeout,
+        src1 = src1,
+        dst1 = dst1,
+        sport1 = sport1,
+        dport1 = dport1,
+        pkts1 = pkts1,
+        bytes1 = bytes1,
+        src2 = src2,
+        dst2 = dst2,
+        sport2 = sport2,
+        dport2 = dport2,
+        pkts2 = pkts2,
+        bytes2 = bytes2,
+        dscp = dscp,
+        state = state,
+        use = use
+    }
+end
+
+-- Stream aggregate host summaries from /proc/net/nf_conntrack
+local function get_host_summaries()
+    local f = io.open("/proc/net/nf_conntrack", "r")
+    if not f then
+        return { total_connections = 0, total_in_bytes = 0, total_out_bytes = 0, hosts = {} }
+    end
+
+    local hostnames = get_hostnames()
+    local hosts_map = {}
+    local total_connections = 0
+    local total_in_bytes = 0
+    local total_out_bytes = 0
+
+    for line in f:lines() do
+        local raw = extract_connection_raw(line)
+        if raw then
+            total_connections = total_connections + 1
+
+            -- Identify LAN host IP and in/out direction
+            local host_ip, in_bytes, out_bytes, in_pkts, out_pkts
+            if is_private_ip(raw.src1) then
+                host_ip = raw.src1
+                out_bytes = raw.bytes1
+                in_bytes = raw.bytes2
+                out_pkts = raw.pkts1
+                in_pkts = raw.pkts2
+            elseif is_private_ip(raw.src2) then
+                host_ip = raw.src2
+                out_bytes = raw.bytes2
+                in_bytes = raw.bytes1
+                out_pkts = raw.pkts2
+                in_pkts = raw.pkts1
+            elseif is_private_ip(raw.dst1) then
+                host_ip = raw.dst1
+                in_bytes = raw.bytes1
+                out_bytes = raw.bytes2
+                in_pkts = raw.pkts1
+                out_pkts = raw.pkts2
+            else
+                host_ip = raw.src1
+                out_bytes = raw.bytes1
+                in_bytes = raw.bytes2
+                out_pkts = raw.pkts1
+                in_pkts = raw.pkts2
+            end
+
+            total_in_bytes = total_in_bytes + in_bytes
+            total_out_bytes = total_out_bytes + out_bytes
+
+            local h = hosts_map[host_ip]
+            if not h then
+                h = {
+                    ip = host_ip,
+                    hostname = hostnames[host_ip] or "",
+                    connections = 0,
+                    in_bytes = 0,
+                    out_bytes = 0,
+                    in_packets = 0,
+                    out_packets = 0,
+                    tcp_conns = 0,
+                    udp_conns = 0,
+                    other_conns = 0,
+                    dscp_counts = {}
+                }
+                hosts_map[host_ip] = h
+            end
+
+            h.connections = h.connections + 1
+            h.in_bytes = h.in_bytes + in_bytes
+            h.out_bytes = h.out_bytes + out_bytes
+            h.in_packets = h.in_packets + in_pkts
+            h.out_packets = h.out_packets + out_pkts
+
+            if raw.protocol == "tcp" then
+                h.tcp_conns = h.tcp_conns + 1
+            elseif raw.protocol == "udp" then
+                h.udp_conns = h.udp_conns + 1
+            else
+                h.other_conns = h.other_conns + 1
+            end
+
+            local d_key = tostring(raw.dscp)
+            h.dscp_counts[d_key] = (h.dscp_counts[d_key] or 0) + 1
         end
     end
     f:close()
 
-    -- Sort only the connections we actually loaded
+    -- Convert to array and sort by total bytes (or connections) descending
+    local host_list = {}
+    for _, h in pairs(hosts_map) do
+        table.insert(host_list, h)
+    end
+
+    table.sort(host_list, function(a, b)
+        local a_total = a.in_bytes + a.out_bytes
+        local b_total = b.in_bytes + b.out_bytes
+        if a_total == b_total then
+            return a.connections > b.connections
+        end
+        return a_total > b_total
+    end)
+
+    return {
+        total_connections = total_connections,
+        total_in_bytes = total_in_bytes,
+        total_out_bytes = total_out_bytes,
+        hosts = host_list
+    }
+end
+
+-- Retrieve detailed connections with on-the-fly streaming filter and bounded memory
+local function get_detailed_connections(args)
+    args = args or {}
+    local target_ip = args.ip
+    local query_filter = args.filter and string.lower(args.filter) or nil
+    local limit = tonumber(args.limit) or 100
+    if limit <= 0 then limit = 100 end
+    if limit > 500 then limit = 500 end  -- Hard safety cap to prevent ubus overload
+
+    local f = io.open("/proc/net/nf_conntrack", "r")
+    if not f then
+        return { ip = target_ip or "", total_connections = 0, limit = limit, list = {} }
+    end
+
+    local matching_total = 0
+    local conn_list = {}
+    local max_buffer = math.min(limit * 4, 1000) -- Bounded collection buffer
+
+    for line in f:lines() do
+        -- Fast sub-string check before full parsing
+        local matched = true
+        if target_ip and target_ip ~= "" and target_ip ~= "all" then
+            if not line:find(target_ip, 1, true) then
+                matched = false
+            end
+        end
+
+        if matched and query_filter and query_filter ~= "" then
+            if not string.lower(line):find(query_filter, 1, true) then
+                matched = false
+            end
+        end
+
+        if matched then
+            local raw = extract_connection_raw(line)
+            if raw then
+                local is_ip_match = true
+                if target_ip and target_ip ~= "" and target_ip ~= "all" then
+                    is_ip_match = (raw.src1 == target_ip or raw.dst1 == target_ip or 
+                                   raw.src2 == target_ip or raw.dst2 == target_ip)
+                end
+
+                if is_ip_match then
+                    matching_total = matching_total + 1
+
+                    -- Format connection object relative to local host
+                    local src, sport, dst, dport, in_bytes, out_bytes, in_pkts, out_pkts
+                    if is_private_ip(raw.src1) or (target_ip and raw.src1 == target_ip) then
+                        src, sport = raw.src1, raw.sport1
+                        dst, dport = raw.dst1, raw.dport1
+                        out_bytes, in_bytes = raw.bytes1, raw.bytes2
+                        out_pkts, in_pkts = raw.pkts1, raw.pkts2
+                    elseif is_private_ip(raw.src2) or (target_ip and raw.src2 == target_ip) then
+                        src, sport = raw.src2, raw.sport2
+                        dst, dport = raw.src1, raw.sport1
+                        out_bytes, in_bytes = raw.bytes2, raw.bytes1
+                        out_pkts, in_pkts = raw.pkts2, raw.pkts1
+                    elseif is_private_ip(raw.dst1) or (target_ip and raw.dst1 == target_ip) then
+                        src, sport = raw.dst1, raw.dport1
+                        dst, dport = raw.src1, raw.sport1
+                        in_bytes, out_bytes = raw.bytes1, raw.bytes2
+                        in_pkts, out_pkts = raw.pkts1, raw.pkts2
+                    else
+                        src, sport = raw.src1, raw.sport1
+                        dst, dport = raw.dst1, raw.dport1
+                        out_bytes, in_bytes = raw.bytes1, raw.bytes2
+                        out_pkts, in_pkts = raw.pkts1, raw.pkts2
+                    end
+
+                    local total_bytes = in_bytes + out_bytes
+
+                    local conn_item = {
+                        layer3 = raw.layer3,
+                        protocol = raw.protocol,
+                        src = src,
+                        sport = sport,
+                        dst = dst,
+                        dport = dport,
+                        in_bytes = in_bytes,
+                        out_bytes = out_bytes,
+                        in_packets = in_pkts,
+                        out_packets = out_pkts,
+                        total_bytes = total_bytes,
+                        dscp = raw.dscp,
+                        state = raw.state,
+                        timeout = raw.timeout,
+                        use = raw.use
+                    }
+
+                    if #conn_list < max_buffer then
+                        table.insert(conn_list, conn_item)
+                    else
+                        -- Maintain top elements if buffer full
+                        if total_bytes > conn_list[#conn_list].total_bytes then
+                            conn_list[#conn_list] = conn_item
+                            table.sort(conn_list, function(a, b) return a.total_bytes > b.total_bytes end)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    f:close()
+
     table.sort(conn_list, function(a, b)
         return a.total_bytes > b.total_bytes
     end)
 
-    -- Determine max_entries based on system load (only if no manual limit)
-    local max_entries = #conn_list
-    if max_connections == 0 then
-        local load_avg = io.open("/proc/loadavg"):read("*a")
-        local load1 = tonumber(load_avg:match("^(%d+%.%d+)")) or 0
-        
-        -- Apply load-based limits only if no manual limit
-        if load1 > 2.0 then
-            max_entries = math.min(100, #conn_list)
-        elseif load1 > 1.5 then
-            max_entries = math.min(500, #conn_list)
-        elseif load1 > 0.8 then
-            max_entries = math.min(1000, #conn_list)
-        end
+    -- Truncate to limit
+    local final_conns = {}
+    local max_count = math.min(#conn_list, limit)
+    for i = 1, max_count do
+        table.insert(final_conns, conn_list[i])
     end
 
-    -- Final connections table
-    local connections = {}
-    for i = 1, max_entries do
-        local conn = conn_list[i]
-        if not conn then break end
-        local key = string.format("%s:%s:%s:%s:%s:%s",
-            conn.layer3, conn.protocol, conn.src, conn.sport, conn.dst, conn.dport)
-        connections[key] = conn
-    end
-
-    return connections, max_connections
+    return {
+        ip = target_ip or "all",
+        total_connections = matching_total,
+        limit = limit,
+        list = final_conns
+    }
 end
 
 -- Define RPC methods
 local methods = {
-    getConntrackDSCP = {
+    getHostSummaries = {
+        args = {},
         call = function()
-            local connections, max_connections = get_connections()
-            return {result = jsonc.stringify({connections = connections, max_connections = max_connections})}
+            local res = get_host_summaries()
+            return { result = jsonc.stringify(res) }
+        end
+    },
+    getConntrackDSCP = {
+        args = { ip = "ip", limit = "limit", filter = "filter" },
+        call = function(args)
+            local res = get_detailed_connections(args)
+            return { result = jsonc.stringify(res) }
         end
     }
 }
@@ -160,7 +403,11 @@ if arg[1] == "list" then
     end
     print((jsonc.stringify(rv):gsub(":%[%]", ":{}")))
 elseif arg[1] == "call" then
-    local args = jsonc.parse(io.stdin:read("*a"))
+    local input = io.stdin:read("*a")
+    local args = {}
+    if input and input ~= "" then
+        args = jsonc.parse(input) or {}
+    end
     local method = methods[arg[2]]
     if method then
         local result = method.call(args)

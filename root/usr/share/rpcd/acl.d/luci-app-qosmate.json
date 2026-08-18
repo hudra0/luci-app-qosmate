@@ -3,7 +3,7 @@
         "description": "Grant access to QoSmate configuration",
         "read": {
             "ubus": {
-                "luci.qosmate": [ "getConntrackDSCP" ],
+                "luci.qosmate": [ "getConntrackDSCP", "getHostSummaries" ],
                 "luci.qosmate_stats": [ "getStats", "getHistoricalStats", "getRrdData", "getRuleCounters", "getAutorateStats" ],
                 "luci": [ "getInitList", "setInitAction", "getInitActionStatus", "exec" ]
             },
