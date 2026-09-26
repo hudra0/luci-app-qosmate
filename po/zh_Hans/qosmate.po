@@ -247,7 +247,7 @@ msgstr "数据包丢失百分比"
 msgid "Percentage of packet loss"
 msgstr "数据包丢失百分比"
 
-msgid "Failed to save settings or update QoSmate service: "
+msgid "Failed to save settings or update QoSmate service:"
 msgstr "保存设置或更新 QoSmate 服务失败："
 
 msgid "QoSmate CAKE Settings"
@@ -649,9 +649,6 @@ msgstr "启用计数器"
 msgid "Custom rules have been saved and applied."
 msgstr "自定义规则已保存并应用。"
 
-msgid "Failed to save settings or restart QoSmate:"
-msgstr "无法保存设置或重启 QoSmate："
-
 msgid "QoSmate Custom Rules"
 msgstr "QoSmate 自定义规则"
 
@@ -669,9 +666,6 @@ msgstr "确定要清除所有自定义规则吗？此操作无法撤销。"
 
 msgid "Custom rules have been erased and changes applied."
 msgstr "自定义规则已清除并应用更改。"
-
-msgid "Failed to erase custom rules or apply changes:"
-msgstr "无法清除自定义规则或应用更改："
 
 msgid "Custom nftables Rules"
 msgstr "自定义 nftables 规则"
@@ -712,9 +706,6 @@ msgstr "请等待规则验证... "
 msgid "Finalizing validation results, please wait..."
 msgstr "正在完成验证结果，请稍候..."
 
-msgid "Error during validation:"
-msgstr "验证过程中出错："
-
 msgid "Example rules:"
 msgstr "示例规则："
 
@@ -733,10 +724,10 @@ msgstr "通过 IP、IP:端口、端口、协议或 DSCP 过滤"
 msgid "Zoom:"
 msgstr "缩放："
 
-msgid "In: "
+msgid "In:"
 msgstr "入站："
 
-msgid "Out: "
+msgid "Out:"
 msgstr "出站："
 
 msgid "Packets"
@@ -763,16 +754,16 @@ msgstr "DSCP"
 msgid "Bytes"
 msgstr "字节"
 
-msgid " (expected IP, IPv6, CIDR, or @setname)"
+msgid "(expected IP, IPv6, CIDR, or @setname)"
 msgstr "（预期为 IP、IPv6、CIDR 或 @setname）"
 
-msgid " (use IP addresses instead)"
+msgid "(use IP addresses instead)"
 msgstr "（请改用 IP 地址）"
 
-msgid " Mbps (based on your "
+msgid "Mbps (based on your"
 msgstr " Mbps（基于您的 "
 
-msgid " Mbps upload)"
+msgid "Mbps upload)"
 msgstr " Mbps 上传）"
 
 msgid "%s (Backend) / %s (Frontend)"
@@ -805,7 +796,7 @@ msgstr "添加 IPv6 地址、子网或范围"
 msgid "Add Rate Limit"
 msgstr "添加速率限制"
 
-msgid "Added for IP: "
+msgid "Added for IP:"
 msgstr "已为 IP 添加："
 
 msgid "Additional link compensation (atm, ptm, noatm). Affects overhead calculations."
@@ -835,10 +826,10 @@ msgstr "自动设置结果"
 msgid "Auto setup did not finish within 5 minutes."
 msgstr "自动设置未在 5 分钟内完成。"
 
-msgid "Auto setup did not finish, last error: "
+msgid "Auto setup did not finish, last error:"
 msgstr "自动设置未完成，最后错误："
 
-msgid "Auto setup failed: "
+msgid "Auto setup failed:"
 msgstr "自动设置失败："
 
 msgid "Auto-detect"
@@ -934,13 +925,13 @@ msgstr "组件使用了不同的更新频道（%s/%s）。是否继续使用 %s 
 msgid "Config"
 msgstr "配置"
 
-msgid "Configure link layer adaptation settings. For detailed information about different link types and overhead calculations, please check the "
+msgid "Configure link layer adaptation settings. For detailed information about different link types and overhead calculations, please check the"
 msgstr "配置链路层适配设置。有关不同链路类型和开销计算的详细信息，请查看 "
 
 msgid "Configure per-device bandwidth limits using nftables meters. Limits are applied based on the source IP of devices, making it easy to control traffic for specific devices or subnets."
 msgstr "使用 nftables 计量器为每台设备配置带宽限制。限制根据设备的源 IP 应用，方便控制特定设备或子网的流量。"
 
-msgid "Connections: "
+msgid "Connections:"
 msgstr "连接数："
 
 msgid "Connections: 0"
@@ -958,7 +949,7 @@ msgstr "当前根队列规则为 %s - 不使用 HFSC 设置。"
 msgid "Current Update Channels"
 msgstr "当前更新频道"
 
-msgid "Current limit: "
+msgid "Current limit:"
 msgstr "当前限制："
 
 msgid "DSL ATM/ADSL (44B)"
@@ -1024,7 +1015,7 @@ msgstr "下载速度"
 msgid "Download shaping disabled (DOWNRATE=0)"
 msgstr "下载整形已禁用 (DOWNRATE=0)"
 
-msgid "Download: "
+msgid "Download:"
 msgstr "下载："
 
 msgid "Dropped"
@@ -1096,7 +1087,7 @@ msgstr "清除"
 msgid "Error displaying connections. System may be overloaded."
 msgstr "显示连接时出错。系统可能过载。"
 
-msgid "Error during validation: "
+msgid "Error during validation:"
 msgstr "验证过程中出错："
 
 msgid "Error loading QoS statistics. Please check if the QoSmate service is running."
@@ -1129,25 +1120,25 @@ msgstr "应用连接限制失败：%s"
 msgid "Failed to change update channel"
 msgstr "更改更新频道失败"
 
-msgid "Failed to erase custom rules or apply changes: "
+msgid "Failed to erase custom rules or apply changes:"
 msgstr "清除自定义规则或应用更改失败："
 
-msgid "Failed to restart QoSmate: "
+msgid "Failed to restart QoSmate:"
 msgstr "重启 QoSmate 失败："
 
-msgid "Failed to save settings or restart QoSmate: "
+msgid "Failed to save settings or restart QoSmate:"
 msgstr "保存设置或重启 QoSmate 失败："
 
-msgid "Failed to start QoSmate: "
+msgid "Failed to start QoSmate:"
 msgstr "启动 QoSmate 失败："
 
-msgid "Failed to stop QoSmate: "
+msgid "Failed to stop QoSmate:"
 msgstr "停止 QoSmate 失败："
 
 msgid "Failed to update QoSmate"
 msgstr "更新 QoSmate 失败"
 
-msgid "Failed to update settings or restart QoSmate: "
+msgid "Failed to update settings or restart QoSmate:"
 msgstr "更新设置或重启 QoSmate 失败："
 
 msgid "Family"
@@ -1165,7 +1156,7 @@ msgstr "正在完成验证"
 msgid "Fine-tune the dynamic bandwidth adjustment algorithm. Enable Autorate in the Settings tab."
 msgstr "微调动态带宽调整算法。请在\"设置\"标签页中启用自动速率。"
 
-msgid "For detailed setup instructions and advanced configuration options, please check the "
+msgid "For detailed setup instructions and advanced configuration options, please check the"
 msgstr "有关详细设置说明和高级配置选项，请查看 "
 
 msgid "For ranges above 60 minutes, recent data (last 60 min) is high-resolution, while older points are aggregated and less precise. \"Latency (max)\" highlights spikes that average latency may hide."
@@ -1294,10 +1285,10 @@ msgstr "内联额外规则"
 msgid "Interval"
 msgstr "间隔"
 
-msgid "Invalid IP address or CIDR format: "
+msgid "Invalid IP address or CIDR format:"
 msgstr "无效的 IP 地址或 CIDR 格式："
 
-msgid "Invalid IP range: "
+msgid "Invalid IP range:"
 msgstr "无效的 IP 范围："
 
 msgid "Invalid IPv6 suffix format. Use ::suffix/::mask with valid IPv6 segments (e.g. ::1234:5678/::ffff:ffff)"
@@ -1315,10 +1306,10 @@ msgstr "HFSC 速率无效。请手动设置非零值。"
 msgid "Invalid set name format. Must start with @ followed by letters, numbers, or underscore"
 msgstr "无效的集合名称格式。必须以 @ 开头，后跟字母、数字或下划线"
 
-msgid "Invalid set name format: "
+msgid "Invalid set name format:"
 msgstr "无效的集合名称格式："
 
-msgid "Invalid target format: "
+msgid "Invalid target format:"
 msgstr "无效的目标格式："
 
 msgid "Large download/upload difference detected ("
@@ -1336,7 +1327,7 @@ msgstr "延迟下降阈值（毫秒）"
 msgid "Latency Increase Threshold (ms)"
 msgstr "延迟上升阈值（毫秒）"
 
-msgid "Latency: "
+msgid "Latency:"
 msgstr "延迟："
 
 msgid "Leave empty for auto-calculation (100% of configured download rate)."
@@ -1378,7 +1369,7 @@ msgstr "将每次速率变化记录到系统日志（用于调试）。可能会
 msgid "Low Priority"
 msgstr "低优先级"
 
-msgid "MAC addresses not supported: "
+msgid "MAC addresses not supported:"
 msgstr "不支持 MAC 地址："
 
 msgid "Manual Overhead (bytes)"
@@ -1540,7 +1531,7 @@ msgstr "请稍候，正在应用更改..."
 msgid "Please wait while the update channel is being changed..."
 msgstr "请稍候，正在更改更新频道..."
 
-msgid "Polling Interval: "
+msgid "Polling Interval:"
 msgstr "轮询间隔："
 
 msgid "Priority"
@@ -1603,7 +1594,7 @@ msgstr "根队列规则："
 msgid "Router-based speed tests may underestimate actual speeds. These results serve as a starting point and may require manual adjustment for optimal performance."
 msgstr "基于路由器的测速可能低估实际速度。这些结果仅作为起点，可能需要手动调整以获得最佳性能。"
 
-msgid "Rule already exists for IP: "
+msgid "Rule already exists for IP:"
 msgstr "IP 已存在规则："
 
 msgid "Rules validation failed. Please check the validation result below."
@@ -1783,7 +1774,7 @@ msgstr "上传速度"
 msgid "Upload shaping disabled (UPRATE=0)"
 msgstr "上传整形已禁用 (UPRATE=0)"
 
-msgid "Upload: "
+msgid "Upload:"
 msgstr "上传："
 
 msgid "Use cake_mq for multi-core CPU scaling. Only effective in pure CAKE mode (not hybrid). Requires kernel support (OpenWrt 25.12+)."
