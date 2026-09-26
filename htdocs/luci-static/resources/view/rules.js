@@ -253,7 +253,7 @@ return view.extend({
             if (headerRow) {
                 var headers = headerRow.querySelectorAll('th');
                 headers.forEach(function(th, index) {
-                    if (th.textContent.includes('Activity')) {
+                    if (th.textContent.includes(_('Activity'))) {
                         activityColumnIndex = index;
 
                     }
