@@ -1,3 +1,5 @@
+msgid ""
+msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Language: zh_CN\n"
@@ -245,7 +247,7 @@ msgstr "数据包丢失百分比"
 msgid "Percentage of packet loss"
 msgstr "数据包丢失百分比"
 
-msgid "Failed to save settings or update QoSmate service: "
+msgid "Failed to save settings or update QoSmate service:"
 msgstr "保存设置或更新 QoSmate 服务失败："
 
 msgid "QoSmate CAKE Settings"
@@ -304,9 +306,6 @@ msgstr "PPPoE PTM"
 
 msgid "Bridged PTM"
 msgstr "桥接 PTM"
-
-msgid "Set the overhead"
-msgstr "设置开销"
 
 msgid "Default: based on preset"
 msgstr "默认值: 基于预设"
@@ -377,9 +376,6 @@ msgstr "为出口设置 ACK 过滤器。如果下载/上传比率≥15，将自�
 msgid "Auto"
 msgstr "自动"
 
-msgid "Enable"
-msgstr "启用"
-
 msgid "Disable"
 msgstr "禁用"
 
@@ -409,9 +405,6 @@ msgstr "额外参数（出口）"
 
 msgid "Set extra parameters for egress"
 msgstr "设置出站的额外参数"
-
-msgid "Failed to save settings or update QoSmate service: "
-msgstr "保存设置或更新 QoSmate 服务失败："
 
 msgid "QoSmate Advanced Settings"
 msgstr "QoSmate 高级设置"
@@ -506,17 +499,11 @@ msgstr "TCP 连接的最大段大小。此设置仅在上传或下载带宽小�
 msgid "Default: 536"
 msgstr "默认值：536"
 
-msgid "Failed to save settings or update QoSmate service: "
-msgstr "保存设置或更新 QoSmate 服务失败："
-
 msgid "QoSmate Rules"
 msgstr "QoSmate 规则"
 
 msgid "Configure QoS rules for marking packets with DSCP values."
 msgstr "配置 QoS 规则以标记具有 DSCP 值的数据包。"
-
-msgid "Rules"
-msgstr "规则"
 
 msgid "General Settings"
 msgstr "常规设置"
@@ -659,17 +646,8 @@ msgstr "CS0 - 最佳努力 (0)"
 msgid "Enable counter"
 msgstr "启用计数器"
 
-msgid "Enable"
-msgstr "启用"
-
-msgid "Failed to save settings or update QoSmate service: "
-msgstr "保存设置或更新 QoSmate 服务失败："
-
 msgid "Custom rules have been saved and applied."
 msgstr "自定义规则已保存并应用。"
-
-msgid "Failed to save settings or restart QoSmate:"
-msgstr "无法保存设置或重启 QoSmate："
 
 msgid "QoSmate Custom Rules"
 msgstr "QoSmate 自定义规则"
@@ -688,9 +666,6 @@ msgstr "确定要清除所有自定义规则吗？此操作无法撤销。"
 
 msgid "Custom rules have been erased and changes applied."
 msgstr "自定义规则已清除并应用更改。"
-
-msgid "Failed to erase custom rules or apply changes:"
-msgstr "无法清除自定义规则或应用更改："
 
 msgid "Custom nftables Rules"
 msgstr "自定义 nftables 规则"
@@ -731,9 +706,6 @@ msgstr "请等待规则验证... "
 msgid "Finalizing validation results, please wait..."
 msgstr "正在完成验证结果，请稍候..."
 
-msgid "Error during validation:"
-msgstr "验证过程中出错："
-
 msgid "Example rules:"
 msgstr "示例规则："
 
@@ -752,10 +724,10 @@ msgstr "通过 IP、IP:端口、端口、协议或 DSCP 过滤"
 msgid "Zoom:"
 msgstr "缩放："
 
-msgid "In: "
+msgid "In:"
 msgstr "入站："
 
-msgid "Out: "
+msgid "Out:"
 msgstr "出站："
 
 msgid "Packets"
@@ -770,9 +742,6 @@ msgstr "最大 PPS"
 msgid "Avg BPS"
 msgstr "平均 BPS"
 
-msgid "Protocol"
-msgstr "协议"
-
 msgid "Source"
 msgstr "来源"
 
@@ -784,3 +753,1108 @@ msgstr "DSCP"
 
 msgid "Bytes"
 msgstr "字节"
+
+msgid "(expected IP, IPv6, CIDR, or @setname)"
+msgstr "（预期为 IP、IPv6、CIDR 或 @setname）"
+
+msgid "(use IP addresses instead)"
+msgstr "（请改用 IP 地址）"
+
+msgid "Mbps (based on your"
+msgstr " Mbps（基于您的 "
+
+msgid "Mbps upload)"
+msgstr " Mbps 上传）"
+
+msgid "%s (Backend) / %s (Frontend)"
+msgstr "%s（后端）/ %s（前端）"
+
+msgid "0 = no burst (strict), 1.0 = rate as burst, higher = more burst"
+msgstr "0 = 无突发（严格），1.0 = 以速率为突发，越高突发越多"
+
+msgid "192.168.1.100, !=192.168.1.77, 2001:db8::1"
+msgstr "192.168.1.100, !=192.168.1.77, 2001:db8::1"
+
+msgid "AF11 (10)"
+msgstr "AF11 (10)"
+
+msgid "API LIMIT"
+msgstr "API 限制"
+
+msgid "Active Range"
+msgstr "活跃范围"
+
+msgid "Activity"
+msgstr "活动"
+
+msgid "Add IPv4 address, subnet or range"
+msgstr "添加 IPv4 地址、子网或范围"
+
+msgid "Add IPv6 address, subnet or range"
+msgstr "添加 IPv6 地址、子网或范围"
+
+msgid "Add Rate Limit"
+msgstr "添加速率限制"
+
+msgid "Added for IP:"
+msgstr "已为 IP 添加："
+
+msgid "Additional link compensation (atm, ptm, noatm). Affects overhead calculations."
+msgstr "附加链路补偿（atm、ptm、noatm）。影响开销计算。"
+
+msgid "Adjustment Factor - Decrease (%)"
+msgstr "调整系数 - 下降（%）"
+
+msgid "Adjustment Factor - Increase (%)"
+msgstr "调整系数 - 上升（%）"
+
+msgid "All rules have been erased and changes applied."
+msgstr "所有规则已清除并应用更改。"
+
+msgid "All rules have been saved and applied."
+msgstr "所有规则已保存并应用。"
+
+msgid "Apply and Reload"
+msgstr "应用并刷新"
+
+msgid "Applying Changes"
+msgstr "正在应用更改"
+
+msgid "Auto Setup Results"
+msgstr "自动设置结果"
+
+msgid "Auto setup did not finish within 5 minutes."
+msgstr "自动设置未在 5 分钟内完成。"
+
+msgid "Auto setup did not finish, last error:"
+msgstr "自动设置未完成，最后错误："
+
+msgid "Auto setup failed:"
+msgstr "自动设置失败："
+
+msgid "Auto-detect"
+msgstr "自动检测"
+
+msgid "Autorate"
+msgstr "自动速率"
+
+msgid "Autorate Settings"
+msgstr "自动速率设置"
+
+msgid "Autorate Status"
+msgstr "自动速率状态"
+
+msgid "Avg Delay"
+msgstr "平均延迟"
+
+msgid "Backend"
+msgstr "后端"
+
+msgid "Background"
+msgstr "后台"
+
+msgid "Bandwidth Ratio Warning"
+msgstr "带宽比例警告"
+
+msgid "Base Download Rate (kbps)"
+msgstr "基础下载速率（kbps）"
+
+msgid "Base Rate"
+msgstr "基础速率"
+
+msgid "Base Upload Rate (kbps)"
+msgstr "基础上传速率（kbps）"
+
+msgid "Baseline"
+msgstr "基线"
+
+msgid "Both Directions"
+msgstr "双向"
+
+msgid "Bulk"
+msgstr "批量"
+
+msgid "Burst Factor"
+msgstr "突发系数"
+
+msgid "CAKE - Common Applications Kept Enhanced. Configure CAKE-specific parameters in the CAKE tab."
+msgstr "CAKE - 通用应用保持增强。在 CAKE 标签页中配置 CAKE 专属参数。"
+
+msgid "CAKE Egress Statistics"
+msgstr "CAKE 出口统计"
+
+msgid "CAKE Ingress Statistics"
+msgstr "CAKE 入口统计"
+
+msgid "CAKE Statistics for Default Class (Egress)"
+msgstr "默认类的 CAKE 统计（出口）"
+
+msgid "CAKE Statistics for Default Class (Ingress)"
+msgstr "默认类的 CAKE 统计（入口）"
+
+msgid "CAKE mode active."
+msgstr "CAKE 模式已启用。"
+
+msgid "Cable DOCSIS (25B)"
+msgstr "DOCSIS 电缆 (25B)"
+
+msgid "Cancel"
+msgstr "取消"
+
+msgid "Change Channel"
+msgstr "更改频道"
+
+msgid "Change Update Channel"
+msgstr "更改更新频道"
+
+msgid "Changing Update Channel"
+msgstr "正在更改更新频道"
+
+msgid "Channel"
+msgstr "频道"
+
+msgid "Class ID"
+msgstr "类 ID"
+
+msgid "Component"
+msgstr "组件"
+
+msgid "Components are using different update channels (%s/%s). Continue with %s channel?"
+msgstr "组件使用了不同的更新频道（%s/%s）。是否继续使用 %s 频道？"
+
+msgid "Config"
+msgstr "配置"
+
+msgid "Configure link layer adaptation settings. For detailed information about different link types and overhead calculations, please check the"
+msgstr "配置链路层适配设置。有关不同链路类型和开销计算的详细信息，请查看 "
+
+msgid "Configure per-device bandwidth limits using nftables meters. Limits are applied based on the source IP of devices, making it easy to control traffic for specific devices or subnets."
+msgstr "使用 nftables 计量器为每台设备配置带宽限制。限制根据设备的源 IP 应用，方便控制特定设备或子网的流量。"
+
+msgid "Connections:"
+msgstr "连接数："
+
+msgid "Connections: 0"
+msgstr "连接数：0"
+
+msgid "Connections: Error"
+msgstr "连接数：错误"
+
+msgid "Current Root QDisc is %s - CAKE settings are not used."
+msgstr "当前根队列规则为 %s - 不使用 CAKE 设置。"
+
+msgid "Current Root QDisc is %s - HFSC settings are not used."
+msgstr "当前根队列规则为 %s - 不使用 HFSC 设置。"
+
+msgid "Current Update Channels"
+msgstr "当前更新频道"
+
+msgid "Current limit:"
+msgstr "当前限制："
+
+msgid "DSL ATM/ADSL (44B)"
+msgstr "DSL ATM/ADSL (44B)"
+
+msgid "Debug only"
+msgstr "仅调试"
+
+msgid "Dec. Threshold"
+msgstr "下降阈值"
+
+msgid "Decrease bandwidth when latency delta exceeds this value."
+msgstr "当延迟差超过此值时降低带宽。"
+
+msgid "Default (CAKE)"
+msgstr "默认（CAKE）"
+
+msgid "Default: 24"
+msgstr "默认值：24"
+
+msgid "Default: 30"
+msgstr "默认值：30"
+
+msgid "Default: 450"
+msgstr "默认值：450"
+
+msgid "Default: 45000"
+msgstr "默认值：45000"
+
+msgid "Default: 5"
+msgstr "默认值：5"
+
+msgid "Default: 7"
+msgstr "默认值：7"
+
+msgid "Default: 90000"
+msgstr "默认值：90000"
+
+msgid "Define groups of IP addresses that can be referenced in QoS rules using @setname"
+msgstr "定义 IP 地址组，可在 QoS 规则中通过 @setname 引用"
+
+msgid "Description"
+msgstr "描述"
+
+msgid "Downgrades TCP flows exceeding ~10 seconds worth of data transfer to CS1 (Bulk). Helps prevent large downloads from starving other traffic."
+msgstr "将传输数据量超过约 10 秒的 TCP 流降级为 CS1（批量）。有助于防止大文件下载挤占其他流量。"
+
+msgid "Downgrades the first ~500ms of TCP traffic (except CS1) to CS0 to prevent initial bursts"
+msgstr "将 TCP 流量的前约 500 毫秒（CS1 除外）降级为 CS0，以防止初始突发。"
+
+msgid "Download Bandwidth"
+msgstr "下载带宽"
+
+msgid "Download Limit (Kbit/s)"
+msgstr "下载限制 (Kbit/s)"
+
+msgid "Download Rate"
+msgstr "下载速率"
+
+msgid "Download Speed"
+msgstr "下载速度"
+
+msgid "Download shaping disabled (DOWNRATE=0)"
+msgstr "下载整形已禁用 (DOWNRATE=0)"
+
+msgid "Download:"
+msgstr "下载："
+
+msgid "Dropped"
+msgstr "已丢弃"
+
+msgid "Drops"
+msgstr "丢包数"
+
+msgid "Dynamic"
+msgstr "动态"
+
+msgid "Dynamic Bandwidth (Autorate)"
+msgstr "动态带宽（自动速率）"
+
+msgid "Dynamically adjust bandwidth based on latency measurements. Fine-tune in Advanced tab."
+msgstr "根据延迟测量动态调整带宽。可在\"高级设置\"标签页中微调。"
+
+msgid "ECN Marked"
+msgstr "ECN 标记"
+
+msgid "Edit Rate Limit: %s"
+msgstr "编辑速率限制：%s"
+
+msgid "Egress (Upload)"
+msgstr "出口（上传）"
+
+msgid "Egress Bytes Sent by Class"
+msgstr "各类发送的出口字节数"
+
+msgid "Egress Bytes Sent by Tin"
+msgstr "各 Tin 发送的出口字节数"
+
+msgid "Egress Dropped Packets by Class"
+msgstr "各类丢弃的出口数据包"
+
+msgid "Egress Dropped Packets by Tin"
+msgstr "各 Tin 丢弃的出口数据包"
+
+msgid "Egress Only"
+msgstr "仅出口"
+
+msgid "Egress Packets Sent by Class"
+msgstr "各类发送的出口数据包"
+
+msgid "Egress Packets Sent by Tin"
+msgstr "各 Tin 发送的出口数据包"
+
+msgid "Enable Autorate"
+msgstr "启用自动速率"
+
+msgid "Enable Initial TCP Down-Prioritization"
+msgstr "启用初始 TCP 降优先级"
+
+msgid "Enable Sustained TCP Down-Prioritization"
+msgstr "启用持续 TCP 降优先级"
+
+msgid "Enable long-term history"
+msgstr "启用长期历史记录"
+
+msgid "Enable trace"
+msgstr "启用跟踪"
+
+msgid "Enabled"
+msgstr "已启用"
+
+msgid "Erase"
+msgstr "清除"
+
+msgid "Error displaying connections. System may be overloaded."
+msgstr "显示连接时出错。系统可能过载。"
+
+msgid "Error during validation:"
+msgstr "验证过程中出错："
+
+msgid "Error loading QoS statistics. Please check if the QoSmate service is running."
+msgstr "加载 QoS 统计信息出错。请检查 QoSmate 服务是否正在运行。"
+
+msgid "Error loading initial data: %s"
+msgstr "加载初始数据出错：%s"
+
+msgid "Error: Could not find rules textareas"
+msgstr "错误：找不到规则文本区域"
+
+msgid "Ethernet (HFSC/HTB: 40B, CAKE: 40B override)"
+msgstr "以太网 (HFSC/HTB: 40B, CAKE: 40B 覆盖)"
+
+msgid "Ethernet VLAN keyword for CAKE. Ignored by other QDiscs."
+msgstr "CAKE 的以太网 VLAN 关键字。其他队列规则会忽略此设置。"
+
+msgid "Example (Full Table Rules):"
+msgstr "示例（完整表规则）："
+
+msgid "Example (Inline Rules):"
+msgstr "示例（内联规则）："
+
+msgid "Experimental"
+msgstr "实验性"
+
+msgid "Failed to apply connection limit: %s"
+msgstr "应用连接限制失败：%s"
+
+msgid "Failed to change update channel"
+msgstr "更改更新频道失败"
+
+msgid "Failed to erase custom rules or apply changes:"
+msgstr "清除自定义规则或应用更改失败："
+
+msgid "Failed to restart QoSmate:"
+msgstr "重启 QoSmate 失败："
+
+msgid "Failed to save settings or restart QoSmate:"
+msgstr "保存设置或重启 QoSmate 失败："
+
+msgid "Failed to start QoSmate:"
+msgstr "启动 QoSmate 失败："
+
+msgid "Failed to stop QoSmate:"
+msgstr "停止 QoSmate 失败："
+
+msgid "Failed to update QoSmate"
+msgstr "更新 QoSmate 失败"
+
+msgid "Failed to update settings or restart QoSmate:"
+msgstr "更新设置或重启 QoSmate 失败："
+
+msgid "Family"
+msgstr "协议族"
+
+msgid "Fast Non-Realtime"
+msgstr "快速非实时"
+
+msgid "Filter by: IP IP:Port Port Protocol DSCP"
+msgstr "过滤条件：IP、IP:端口、端口、协议、DSCP"
+
+msgid "Finalizing Validation"
+msgstr "正在完成验证"
+
+msgid "Fine-tune the dynamic bandwidth adjustment algorithm. Enable Autorate in the Settings tab."
+msgstr "微调动态带宽调整算法。请在\"设置\"标签页中启用自动速率。"
+
+msgid "For detailed setup instructions and advanced configuration options, please check the"
+msgstr "有关详细设置说明和高级配置选项，请查看 "
+
+msgid "For ranges above 60 minutes, recent data (last 60 min) is high-resolution, while older points are aggregated and less precise. \"Latency (max)\" highlights spikes that average latency may hide."
+msgstr "对于超过 60 分钟的范围，最近数据（最后 60 分钟）为高分辨率，而较早的数据点会被聚合且精度较低。\"延迟（最大值）\"会突出显示平均延迟可能掩盖的尖峰。"
+
+msgid "Frontend"
+msgstr "前端"
+
+msgid "Game Queue Discipline:"
+msgstr "游戏队列规则："
+
+msgid "Gaming Rules"
+msgstr "游戏规则"
+
+msgid "General"
+msgstr "常规"
+
+msgid "General Information"
+msgstr "基本信息"
+
+msgid "HFSC - Hierarchical Fair Service Curve. Configure realtime traffic settings in the HFSC tab."
+msgstr "HFSC - 分层公平服务曲线。在 HFSC 标签页中配置实时流量设置。"
+
+msgid "HFSC Egress Class Statistics"
+msgstr "HFSC 出口类统计"
+
+msgid "HFSC Ingress Class Statistics"
+msgstr "HFSC 入口类统计"
+
+msgid "HFSC mode active."
+msgstr "HFSC 模式已启用。"
+
+msgid "HTB (Experimental)"
+msgstr "HTB（实验性）"
+
+msgid "HTB - Hierarchical Token Bucket. Simple 3-tier priority system with pre-configured settings - no additional qdisc configuration required."
+msgstr "HTB - 分层令牌桶。简单的 3 级优先级系统，带预配置设置 - 无需额外配置队列规则。"
+
+msgid "HTB Egress Class Statistics"
+msgstr "HTB 出口类统计"
+
+msgid "HTB Ingress Class Statistics"
+msgstr "HTB 入口类统计"
+
+msgid "High Priority (Realtime)"
+msgstr "高优先级（实时）"
+
+msgid "How often to measure latency and adjust bandwidth."
+msgstr "测量延迟并调整带宽的频率。"
+
+msgid "Hybrid"
+msgstr "混合"
+
+msgid "Hybrid - HFSC as shaper, Game Qdisc for realtime traffic, CAKE for default traffic and fq_codel for bulk traffic. Configure realtime class settings in HFSC tab and default class settings in CAKE tab."
+msgstr "混合 - 使用 HFSC 作为整形器，游戏队列规则用于实时流量，CAKE 用于默认流量，fq_codel 用于批量流量。在 HFSC 标签页中配置实时类设置，在 CAKE 标签页中配置默认类设置。"
+
+msgid "Hybrid Egress Class Statistics"
+msgstr "混合出口类统计"
+
+msgid "Hybrid Ingress Class Statistics"
+msgstr "混合入口类统计"
+
+msgid "Hybrid Note:"
+msgstr "混合模式说明："
+
+msgid "Hybrid mode - these settings control default traffic class (normal priority)."
+msgstr "混合模式 - 这些设置控制默认流量类（普通优先级）。"
+
+msgid "Hybrid mode - these settings control realtime traffic (high priority class)."
+msgstr "混合模式 - 这些设置控制实时流量（高优先级类）。"
+
+msgid "ICMPv6"
+msgstr "ICMPv6"
+
+msgid "IP Sets"
+msgstr "IP 集合"
+
+msgid "IP address, range, @setname or ::suffix/::mask"
+msgstr "IP 地址、范围、@setname 或 ::suffix/::mask"
+
+msgid "IPv4"
+msgstr "IPv4"
+
+msgid "IPv4 Addresses"
+msgstr "IPv4 地址"
+
+msgid "IPv6"
+msgstr "IPv6"
+
+msgid "IPv6 Addresses"
+msgstr "IPv6 地址"
+
+msgid "Inc. Threshold"
+msgstr "上升阈值"
+
+msgid "Increase bandwidth when latency delta is below this value."
+msgstr "当延迟差低于此值时提高带宽。"
+
+msgid "Ingress (Download)"
+msgstr "入口（下载）"
+
+msgid "Ingress Bytes Sent by Class"
+msgstr "各类发送的入口字节数"
+
+msgid "Ingress Bytes Sent by Tin"
+msgstr "各 Tin 发送的入口字节数"
+
+msgid "Ingress Dropped Packets by Class"
+msgstr "各类丢弃的入口数据包"
+
+msgid "Ingress Dropped Packets by Tin"
+msgstr "各 Tin 丢弃的入口数据包"
+
+msgid "Ingress Only"
+msgstr "仅入口"
+
+msgid "Ingress Packets Sent by Class"
+msgstr "各类发送的入口数据包"
+
+msgid "Ingress Packets Sent by Tin"
+msgstr "各 Tin 发送的入口数据包"
+
+msgid "Inline Extra Rules"
+msgstr "内联额外规则"
+
+msgid "Interval"
+msgstr "间隔"
+
+msgid "Invalid IP address or CIDR format:"
+msgstr "无效的 IP 地址或 CIDR 格式："
+
+msgid "Invalid IP range:"
+msgstr "无效的 IP 范围："
+
+msgid "Invalid IPv6 suffix format. Use ::suffix/::mask with valid IPv6 segments (e.g. ::1234:5678/::ffff:ffff)"
+msgstr "无效的 IPv6 后缀格式。请使用 ::suffix/::mask 格式并提供有效的 IPv6 段（例如 ::1234:5678/::ffff:ffff）"
+
+msgid "Invalid decimal format"
+msgstr "无效的小数格式"
+
+msgid "Invalid protocol: %s"
+msgstr "无效的协议：%s"
+
+msgid "Invalid rates for HFSC. Please set non-zero values manually."
+msgstr "HFSC 速率无效。请手动设置非零值。"
+
+msgid "Invalid set name format. Must start with @ followed by letters, numbers, or underscore"
+msgstr "无效的集合名称格式。必须以 @ 开头，后跟字母、数字或下划线"
+
+msgid "Invalid set name format:"
+msgstr "无效的集合名称格式："
+
+msgid "Invalid target format:"
+msgstr "无效的目标格式："
+
+msgid "Large download/upload difference detected ("
+msgstr "检测到较大的下载/上传差异（"
+
+msgid "Latency"
+msgstr "延迟"
+
+msgid "Latency (max)"
+msgstr "延迟（最大值）"
+
+msgid "Latency Decrease Threshold (ms)"
+msgstr "延迟下降阈值（毫秒）"
+
+msgid "Latency Increase Threshold (ms)"
+msgstr "延迟上升阈值（毫秒）"
+
+msgid "Latency:"
+msgstr "延迟："
+
+msgid "Leave empty for auto-calculation (100% of configured download rate)."
+msgstr "留空以自动计算（已配置下载速率的 100%）。"
+
+msgid "Leave empty for auto-calculation (100% of configured upload rate)."
+msgstr "留空以自动计算（已配置上传速率的 100%）。"
+
+msgid "Leave empty for auto-calculation (105% of configured download rate)."
+msgstr "留空以自动计算（已配置下载速率的 105%）。"
+
+msgid "Leave empty for auto-calculation (105% of configured upload rate)."
+msgstr "留空以自动计算（已配置上传速率的 105%）。"
+
+msgid "Leave empty for auto-calculation (25% of configured download rate)."
+msgstr "留空以自动计算（已配置下载速率的 25%）。"
+
+msgid "Leave empty for auto-calculation (25% of configured upload rate)."
+msgstr "留空以自动计算（已配置上传速率的 25%）。"
+
+msgid "Limited to %d connections. Some connections may not be shown."
+msgstr "限制显示 %d 个连接。部分连接可能不会显示。"
+
+msgid "Limits"
+msgstr "限制"
+
+msgid "Link Layer Settings"
+msgstr "链路层设置"
+
+msgid "Loading health check status..."
+msgstr "正在加载健康检查状态..."
+
+msgid "Log All Rate Changes"
+msgstr "记录所有速率变化"
+
+msgid "Log every rate change to system log (for debugging). May spam logs."
+msgstr "将每次速率变化记录到系统日志（用于调试）。可能会产生大量日志。"
+
+msgid "Low Priority"
+msgstr "低优先级"
+
+msgid "MAC addresses not supported:"
+msgstr "不支持 MAC 地址："
+
+msgid "Manual Overhead (bytes)"
+msgstr "手动开销（字节）"
+
+msgid "Max"
+msgstr "最大"
+
+msgid "Max Connections:"
+msgstr "最大连接数："
+
+msgid "Max Download Rate (kbps)"
+msgstr "最大下载速率（kbps）"
+
+msgid "Max Upload Rate (kbps)"
+msgstr "最大上传速率（kbps）"
+
+msgid "Maximum Segment Size for TCP connections. This setting is only active when the upload or download bandwidth is less than 3000 kbit/s. Leave empty to use the default value. Valid range: 536-1500"
+msgstr "TCP 连接的最大段大小。此设置仅在上传或下载带宽小于 3000 kbit/s 时生效。留空将使用默认值。有效范围：536-1500"
+
+msgid "Measurement Interval (ms)"
+msgstr "测量间隔（毫秒）"
+
+msgid "Min"
+msgstr "最小"
+
+msgid "Min Download Rate (kbps)"
+msgstr "最小下载速率（kbps）"
+
+msgid "Min Upload Rate (kbps)"
+msgstr "最小上传速率（kbps）"
+
+msgid "Minimum packet unit size. Used primarily by CAKE, ignored by other QDiscs."
+msgstr "最小数据包单元大小。主要由 CAKE 使用，其他队列规则会忽略此设置。"
+
+msgid "Minimum wait time after a rate decrease before next adjustment."
+msgstr "降低速率后到下次调整前的最小等待时间。"
+
+msgid "Minimum wait time after a rate increase before next adjustment."
+msgstr "提高速率后到下次调整前的最小等待时间。"
+
+msgid "Multi-Queue CAKE (cake_mq)"
+msgstr "多队列 CAKE (cake_mq)"
+
+msgid "Multiply current rate by this percentage when decreasing (85 = 15% decrease)."
+msgstr "降低时将当前速率乘以此百分比（85 = 降低 15%）。"
+
+msgid "Multiply current rate by this percentage when increasing (102 = 2% increase)."
+msgstr "上升时将当前速率乘以此百分比（102 = 提升 2%）。"
+
+msgid "Must be a non-negative integer or empty"
+msgstr "必须为非负整数或留空"
+
+msgid "Must be a number"
+msgstr "必须为数字"
+
+msgid "Must be an integer or empty"
+msgstr "必须为整数或留空"
+
+msgid "Must be between 0 and 100000000 Kbit/s"
+msgstr "必须在 0 到 100000000 Kbit/s 之间"
+
+msgid "Must be between 0.0 and 10.0 (0 = no burst)"
+msgstr "必须在 0.0 到 10.0 之间（0 = 无突发）"
+
+msgid "Must be between 536 and 1500"
+msgstr "必须在 536 到 1500 之间"
+
+msgid "NETEM Direction"
+msgstr "NETEM 方向"
+
+msgid "No IFB device is created. TCP bulk detection is off because its thresholds derive from the download rate, CAKE ingress options have no effect, and incoming packets carry no DSCP."
+msgstr "未创建 IFB 设备。TCP 批量检测已关闭，因为其阈值来自下载速率；CAKE 入口选项无效，且入站数据包不带 DSCP。"
+
+msgid "No QoS statistics available. Make sure QoSmate is running."
+msgstr "没有可用的 QoS 统计信息。请确保 QoSmate 正在运行。"
+
+msgid "No data available"
+msgstr "暂无数据"
+
+msgid "No egress qdisc is created, so traffic classification only affects the download queue."
+msgstr "未创建出口队列规则，因此流量分类仅影响下载队列。"
+
+msgid "No hourly history available yet. Data is consolidated once per hour."
+msgstr "暂无小时历史数据。数据每小时整合一次。"
+
+msgid "No shaping active: both rates are 0"
+msgstr "未启用整形：上下行速率均为 0"
+
+msgid "Normal"
+msgstr "普通"
+
+msgid "Not available"
+msgstr "不可用"
+
+msgid "Not available in Hybrid mode (cake_mq requires root qdisc)"
+msgstr "混合模式下不可用（cake_mq 需要作为根队列规则）"
+
+msgid "Not detected"
+msgstr "未检测到"
+
+msgid "Not set"
+msgstr "未设置"
+
+msgid "Not used with %s"
+msgstr "不适用于 %s"
+
+msgid "Note:"
+msgstr "注意："
+
+msgid "Note: Router-based speed tests may underestimate actual speeds. For best results, consider running tests from a LAN device and manually entering the values. These results serve as a starting point."
+msgstr "注意：基于路由器的测速可能低估实际速度。为获得最佳结果，建议从局域网设备运行测速并手动输入数值。这些结果仅作为起点。"
+
+msgid "Note: The \"snapshot\" channel might not be available in the current repository configuration."
+msgstr "注意：在当前仓库配置中，\"snapshot\" 频道可能不可用。"
+
+msgid "Off (default)"
+msgstr "关闭（默认）"
+
+msgid "Only digits and decimal separators allowed"
+msgstr "仅允许数字和小数分隔符"
+
+msgid "Only nftables DSCP marking is applied, no queues are created."
+msgstr "仅应用 nftables DSCP 标记，不创建队列。"
+
+msgid "Overlimits"
+msgstr "超限数"
+
+msgid "Override automatic overhead. For HFSC/HTB: Ethernet=40, DOCSIS=25, ATM=44. CAKE will add this to its preset."
+msgstr "覆盖自动开销。对于 HFSC/HTB：以太网=40、DOCSIS=25、ATM=44。CAKE 会将此值叠加到其预设上。"
+
+msgid "Packages"
+msgstr "软件包"
+
+msgid "Pareto"
+msgstr "Pareto"
+
+msgid "Pareto Normal"
+msgstr "Pareto 正态"
+
+msgid "Pause"
+msgstr "暂停"
+
+msgid "Peak Delay"
+msgstr "峰值延迟"
+
+msgid "Ping Reflectors"
+msgstr "Ping 反射器"
+
+msgid "Please wait while QoSmate is being updated..."
+msgstr "请稍候，QoSmate 正在更新..."
+
+msgid "Please wait while the auto setup is in progress..."
+msgstr "请稍候，自动设置正在进行中..."
+
+msgid "Please wait while the changes are being applied..."
+msgstr "请稍候，正在应用更改..."
+
+msgid "Please wait while the update channel is being changed..."
+msgstr "请稍候，正在更改更新频道..."
+
+msgid "Polling Interval:"
+msgstr "轮询间隔："
+
+msgid "Priority"
+msgstr "优先级"
+
+msgid "Priority Queue Type (Egress):"
+msgstr "优先级队列类型（出口）："
+
+msgid "Priority Queue Type (Ingress):"
+msgstr "优先级队列类型（入口）："
+
+msgid "QoS Configuration"
+msgstr "QoS 配置"
+
+msgid "QoSmate IP Sets"
+msgstr "QoSmate IP 集合"
+
+msgid "QoSmate Rate Limits"
+msgstr "QoSmate 速率限制"
+
+msgid "QoSmate Update"
+msgstr "QoSmate 更新"
+
+msgid "QoSmate restarted"
+msgstr "QoSmate 已重启"
+
+msgid "QoSmate updated successfully."
+msgstr "QoSmate 更新成功。"
+
+msgid "Queue Type"
+msgstr "队列类型"
+
+msgid "Rate Limit"
+msgstr "速率限制"
+
+msgid "Rate Limits"
+msgstr "速率限制"
+
+msgid "Realtime Gaming"
+msgstr "实时游戏"
+
+msgid "Refractory Period - Decrease (s)"
+msgstr "不应期 - 下降（秒）"
+
+msgid "Refractory Period - Increase (s)"
+msgstr "不应期 - 上升（秒）"
+
+msgid "Refresh Interval"
+msgstr "刷新间隔"
+
+msgid "Release (stable)"
+msgstr "Release（稳定版）"
+
+msgid "Resume"
+msgstr "继续"
+
+msgid "Root Queueing Discipline:"
+msgstr "根队列规则："
+
+msgid "Router-based speed tests may underestimate actual speeds. These results serve as a starting point and may require manual adjustment for optimal performance."
+msgstr "基于路由器的测速可能低估实际速度。这些结果仅作为起点，可能需要手动调整以获得最佳性能。"
+
+msgid "Rule already exists for IP:"
+msgstr "IP 已存在规则："
+
+msgid "Rules validation failed. Please check the validation result below."
+msgstr "规则验证失败。请查看下方的验证结果。"
+
+msgid "Rules validation successful."
+msgstr "规则验证成功。"
+
+msgid "Running Auto Setup"
+msgstr "正在运行自动设置"
+
+msgid "Select components to update:"
+msgstr "选择要更新的组件："
+
+msgid "Select the update channel for QoSmate:"
+msgstr "选择 QoSmate 的更新频道："
+
+msgid "Select which direction to apply the NETEM delay/jitter settings"
+msgstr "选择应用 NETEM 延迟/抖动设置的方向"
+
+msgid "Select your connection type for overhead calculation. Used by all QDiscs (HTB, HFSC, Hybrid, CAKE)."
+msgstr "选择用于开销计算的连接类型。适用于所有队列规则（HTB、HFSC、混合、CAKE）。"
+
+msgid "Service"
+msgstr "服务"
+
+msgid "Service Status & Control"
+msgstr "服务状态与控制"
+
+msgid "Service not running - restart to apply"
+msgstr "服务未运行 - 重启以应用"
+
+msgid "Set ACK_FILTER_EGRESS explicitly in the CAKE tab: \"auto\" cannot decide without a download rate."
+msgstr "请在 CAKE 标签页中显式设置 ACK_FILTER_EGRESS：没有下载速率时，\"auto\" 无法自动判断。"
+
+msgid "Set Mode"
+msgstr "设置模式"
+
+msgid "Set Name"
+msgstr "集合名称"
+
+msgid "Set name is required"
+msgstr "集合名称为必填项"
+
+msgid "Set name must contain only letters, numbers, and underscore"
+msgstr "集合名称只能包含字母、数字和下划线"
+
+msgid "Set the download rate in kbps. 0 disables ingress shaping (no IFB device is created)."
+msgstr "以 kbps 为单位设置下载速率。设为 0 将禁用入口整形（不创建 IFB 设备）。"
+
+msgid "Set the upload rate in kbps. 0 disables egress shaping."
+msgstr "以 kbps 为单位设置上传速率。设为 0 将禁用出口整形。"
+
+msgid "Shaping Direction"
+msgstr "整形方向"
+
+msgid "Shaping:"
+msgstr "整形："
+
+msgid "Show Examples"
+msgstr "显示示例"
+
+msgid "Showing %s of data (requested %s). History grows over time."
+msgstr "显示 %s 的数据（请求 %s）。历史数据会随时间增长。"
+
+msgid "Snapshot (latest from main)"
+msgstr "Snapshot（主分支最新版）"
+
+msgid "Software Flow Offloading Status"
+msgstr "软件流量卸载状态"
+
+msgid "Software Flow Offloading active - some limitations apply"
+msgstr "软件流量卸载已启用 - 存在一些限制"
+
+msgid "Space-separated list of IP addresses for latency measurement."
+msgstr "以空格分隔的 IP 地址列表，用于延迟测量。"
+
+msgid "Sparse Delay"
+msgstr "稀疏延迟"
+
+msgid "Speed Test Results"
+msgstr "测速结果"
+
+msgid "Statements only – run inside chain dscptag at hook $NFT_HOOK / priority $NFT_PRIORITY. Do not start with 'table' or 'chain'. Included only if validation passes."
+msgstr "仅限语句 – 在钩子 $NFT_HOOK / 优先级 $NFT_PRIORITY 的 dscptag 链内运行。不要以 'table' 或 'chain' 开头。只有验证通过才会包含。"
+
+msgid "Static"
+msgstr "静态"
+
+msgid "Statistics"
+msgstr "统计信息"
+
+msgid "Target"
+msgstr "目标"
+
+msgid "Target Devices"
+msgstr "目标设备"
+
+msgid "Threshold"
+msgstr "阈值"
+
+msgid "Throughput"
+msgstr "吞吐量"
+
+msgid "Time Range"
+msgstr "时间范围"
+
+msgid "Timeout"
+msgstr "超时"
+
+msgid "Timeout must be in a valid format (e.g., \"10s\", \"1h\", \"2h12m10s\")"
+msgstr "超时格式无效（例如 \"10s\"、\"1h\"、\"2h12m10s\"）"
+
+msgid "Tin"
+msgstr "Tin"
+
+msgid "To change the update channel, go to the Advanced tab"
+msgstr "要更改更新频道，请前往\"高级设置\"标签页"
+
+msgid "To override: Advanced Settings → BWMAXRATIO"
+msgstr "覆盖方法：高级设置 → BWMAXRATIO"
+
+msgid "Traffic FROM device. 0 = unlimited"
+msgstr "来自设备的流量。0 = 不限制"
+
+msgid "Traffic TO device. 0 = unlimited"
+msgstr "发送到设备的流量。0 = 不限制"
+
+msgid "UPDATE AVAILABLE"
+msgstr "有可用更新"
+
+msgid "Unlimited"
+msgstr "不限制"
+
+msgid "Update Channel"
+msgstr "更新频道"
+
+msgid "Update Now"
+msgstr "立即更新"
+
+msgid "Update QoSmate"
+msgstr "更新 QoSmate"
+
+msgid "Update QoSmate Components"
+msgstr "更新 QoSmate 组件"
+
+msgid "Update Settings"
+msgstr "更新设置"
+
+msgid "Update channel change encountered issues: %s"
+msgstr "更改更新频道遇到问题：%s"
+
+msgid "Update channel changed to %s. Reloading page..."
+msgstr "更新频道已更改为 %s。正在刷新页面..."
+
+msgid "Update process encountered issues: %s"
+msgstr "更新过程遇到问题：%s"
+
+msgid "Updating QoSmate"
+msgstr "正在更新 QoSmate"
+
+msgid "Updating QoSmate. Please wait..."
+msgstr "正在更新 QoSmate。请稍候..."
+
+msgid "Upload Bandwidth"
+msgstr "上传带宽"
+
+msgid "Upload Limit (Kbit/s)"
+msgstr "上传限制 (Kbit/s)"
+
+msgid "Upload Rate"
+msgstr "上传速率"
+
+msgid "Upload Speed"
+msgstr "上传速度"
+
+msgid "Upload shaping disabled (UPRATE=0)"
+msgstr "上传整形已禁用 (UPRATE=0)"
+
+msgid "Upload:"
+msgstr "上传："
+
+msgid "Use cake_mq for multi-core CPU scaling. Only effective in pure CAKE mode (not hybrid). Requires kernel support (OpenWrt 25.12+)."
+msgstr "使用 cake_mq 实现多核 CPU 扩展。仅在纯 CAKE 模式（非混合）下有效。需要内核支持（OpenWrt 25.12+）。"
+
+msgid "Uses Realtime (1:11) & Bulk (1:15) classes with their dscp values from HFSC. All other traffic is handled by a single CAKE class (1:13)."
+msgstr "使用 HFSC 中的 Realtime (1:11) 和 Bulk (1:15) 类及其 DSCP 值。其他所有流量由单一 CAKE 类 (1:13) 处理。"
+
+msgid "Version & Updates"
+msgstr "版本与更新"
+
+msgid "WAN Interface:"
+msgstr "WAN 接口："
+
+msgid "Your download speed has been limited to prevent connection issues."
+msgstr "为避免连接问题，您的下载速度已被限制。"
+
+msgid "[CAKE] Conservative (48B + ATM)"
+msgstr "[CAKE] 保守 (48B + ATM)"
+
+msgid "[CAKE] Ethernet (38B native)"
+msgstr "[CAKE] 以太网 (38B 原生)"
+
+msgid "[CAKE] Raw (No overhead)"
+msgstr "[CAKE] 原始（无开销）"
+
+msgid "cake_mq active"
+msgstr "cake_mq 已启用"
+
+msgid "cake_mq is active"
+msgstr "cake_mq 已启用"
+
+msgid "cake_mq not available"
+msgstr "cake_mq 不可用"
+
+msgid "cake_mq not available on this system, using standard cake"
+msgstr "此系统不支持 cake_mq，正在使用标准 cake"
+
+msgid "cake_mq off"
+msgstr "cake_mq 已关闭"
+
+msgid "days"
+msgstr "天"
+
+msgid "disabled in both directions (both rates are 0)"
+msgstr "双向均已禁用（上下行速率均为 0）"
+
+msgid "e.g., 1h"
+msgstr "例如：1h"
+
+msgid "e.g., Guest Network Limit"
+msgstr "例如：访客网络限制"
+
+msgid "egress only (DOWNRATE=0, no ingress statistics)"
+msgstr "仅出口（DOWNRATE=0，无入口统计）"
+
+msgid "forward"
+msgstr "转发"
+
+msgid "hours"
+msgstr "小时"
+
+msgid "ingress only (UPRATE=0, no egress statistics)"
+msgstr "仅入口（UPRATE=0，无出口统计）"
+
+msgid "load"
+msgstr "负载"
+
+msgid "minutes"
+msgstr "分钟"
+
+msgid "no activity"
+msgstr "无活动"
+
+msgid "postrouting"
+msgstr "路由后"
+
+msgid "seconds"
+msgstr "秒"
+
+msgid "✓ Static rules work ✗ Dynamic rules may not work"
+msgstr "✓ 静态规则有效 ✗ 动态规则可能无效"
+

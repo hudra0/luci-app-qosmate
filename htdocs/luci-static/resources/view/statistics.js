@@ -253,6 +253,52 @@ var TimeSeriesChart = {
     }
 };
 
+// Statistics tables and charts are rendered with translated headings, so they
+// have to be grouped into the Egress/Ingress tabs by comparing against the
+// translations as well. A plain English keyword match such as
+// title.includes('Egress') dropped every table and chart in a non-English UI.
+var qosmateEgressHeadings = [
+    'CAKE Egress Statistics',
+    'CAKE Statistics for Default Class (Egress)',
+    'Egress Bytes Sent by Class',
+    'Egress Bytes Sent by Tin',
+    'Egress Dropped Packets by Class',
+    'Egress Dropped Packets by Tin',
+    'Egress Packets Sent by Class',
+    'Egress Packets Sent by Tin',
+    'HFSC Egress Class Statistics',
+    'HTB Egress Class Statistics',
+    'Hybrid Egress Class Statistics'
+];
+
+var qosmateIngressHeadings = [
+    'CAKE Ingress Statistics',
+    'CAKE Statistics for Default Class (Ingress)',
+    'HFSC Ingress Class Statistics',
+    'HTB Ingress Class Statistics',
+    'Hybrid Ingress Class Statistics',
+    'Ingress Bytes Sent by Class',
+    'Ingress Bytes Sent by Tin',
+    'Ingress Dropped Packets by Class',
+    'Ingress Dropped Packets by Tin',
+    'Ingress Packets Sent by Class',
+    'Ingress Packets Sent by Tin'
+];
+
+var isEgressHeading = function(heading) {
+    for (var i = 0; i < qosmateEgressHeadings.length; i++)
+        if (heading === _(qosmateEgressHeadings[i]))
+            return true;
+    return false;
+};
+
+var isIngressHeading = function(heading) {
+    for (var i = 0; i < qosmateIngressHeadings.length; i++)
+        if (heading === _(qosmateIngressHeadings[i]))
+            return true;
+    return false;
+};
+
 // Main view
 return view.extend({
     pollInterval: 5,
@@ -440,7 +486,7 @@ return view.extend({
             // Create table for CAKE egress tins
             if (egressRows.length > 0) {
                 result.tables.push(self.createStatsTable(
-                    _('CAKE Egress Statistics - eth1'),
+                    _('CAKE Egress Statistics'),
                     [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
                     egressRows
                 ));
@@ -511,7 +557,7 @@ return view.extend({
             // Create table for CAKE ingress tins
             if (ingressRows.length > 0) {
                 result.tables.push(self.createStatsTable(
-                    _('CAKE Ingress Statistics - eth1'),
+                    _('CAKE Ingress Statistics'),
                     [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
                     ingressRows
                 ));
@@ -1621,9 +1667,9 @@ return view.extend({
                         var titleElement = cakeResults.tables[i].querySelector('h3, .table-title');
                         if (titleElement) {
                             var title = titleElement.textContent || titleElement.innerText;
-                            if (title.includes('Egress')) {
+                            if (isEgressHeading(title)) {
                                 egressTable = cakeResults.tables[i];
-                            } else if (title.includes('Ingress')) {
+                            } else if (isIngressHeading(title)) {
                                 ingressTable = cakeResults.tables[i];
                             }
                         }
@@ -1649,9 +1695,9 @@ return view.extend({
                             var chartTitle = cakeResults.charts[i].querySelector('h3');
                             var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
                             
-                            if (titleText.includes('Egress')) {
+                            if (isEgressHeading(titleText)) {
                                 egressCharts.push(cakeResults.charts[i]);
-                            } else if (titleText.includes('Ingress')) {
+                            } else if (isIngressHeading(titleText)) {
                                 ingressCharts.push(cakeResults.charts[i]);
                             }
                         }
@@ -1701,9 +1747,9 @@ return view.extend({
                         var titleElement = hfscResults.tables[i].querySelector('h3, .table-title');
                         if (titleElement) {
                             var title = titleElement.textContent || titleElement.innerText;
-                            if (title.includes('Egress')) {
+                            if (isEgressHeading(title)) {
                                 egressTable = hfscResults.tables[i];
-                            } else if (title.includes('Ingress')) {
+                            } else if (isIngressHeading(title)) {
                                 ingressTable = hfscResults.tables[i];
                             }
                         }
@@ -1729,9 +1775,9 @@ return view.extend({
                             var chartTitle = hfscResults.charts[i].querySelector('h3');
                             var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
                             
-                            if (titleText.includes('Egress')) {
+                            if (isEgressHeading(titleText)) {
                                 egressCharts.push(hfscResults.charts[i]);
-                            } else if (titleText.includes('Ingress')) {
+                            } else if (isIngressHeading(titleText)) {
                                 ingressCharts.push(hfscResults.charts[i]);
                             }
                         }
@@ -1783,13 +1829,13 @@ return view.extend({
                         var titleElement = hybridResults.tables[i].querySelector('h3, .table-title');
                         if (titleElement) {
                             var title = titleElement.textContent || titleElement.innerText;
-                            if (title.includes('Hybrid Egress Class')) {
+                            if (title === _('Hybrid Egress Class Statistics')) {
                                 egressClassTable = hybridResults.tables[i];
-                            } else if (title.includes('Hybrid Ingress Class')) {
+                            } else if (title === _('Hybrid Ingress Class Statistics')) {
                                 ingressClassTable = hybridResults.tables[i];
-                            } else if (title.includes('CAKE') && title.includes('Egress')) {
+                            } else if (title === _('CAKE Statistics for Default Class (Egress)')) {
                                 cakeEgressTable = hybridResults.tables[i];
-                            } else if (title.includes('CAKE') && title.includes('Ingress')) {
+                            } else if (title === _('CAKE Statistics for Default Class (Ingress)')) {
                                 cakeIngressTable = hybridResults.tables[i];
                             }
                         }
@@ -1820,9 +1866,9 @@ return view.extend({
                             var chartTitle = hybridResults.charts[i].querySelector('h3');
                             var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
                             
-                            if (titleText.includes('Egress')) {
+                            if (isEgressHeading(titleText)) {
                                 egressCharts.push(hybridResults.charts[i]);
-                            } else if (titleText.includes('Ingress')) {
+                            } else if (isIngressHeading(titleText)) {
                                 ingressCharts.push(hybridResults.charts[i]);
                             }
                         }
@@ -1872,9 +1918,9 @@ return view.extend({
                         var titleElement = htbResults.tables[i].querySelector('h3, .table-title');
                         if (titleElement) {
                             var title = titleElement.textContent || titleElement.innerText;
-                            if (title.includes('HTB Egress Class')) {
+                            if (title === _('HTB Egress Class Statistics')) {
                                 egressClassTable = htbResults.tables[i];
-                            } else if (title.includes('HTB Ingress Class')) {
+                            } else if (title === _('HTB Ingress Class Statistics')) {
                                 ingressClassTable = htbResults.tables[i];
                             }
                         }
@@ -1898,9 +1944,9 @@ return view.extend({
                             var chartTitle = htbResults.charts[i].querySelector('h3');
                             var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
                             
-                            if (titleText.includes('Egress')) {
+                            if (isEgressHeading(titleText)) {
                                 egressCharts.push(htbResults.charts[i]);
-                            } else if (titleText.includes('Ingress')) {
+                            } else if (isIngressHeading(titleText)) {
                                 ingressCharts.push(htbResults.charts[i]);
                             }
                         }
