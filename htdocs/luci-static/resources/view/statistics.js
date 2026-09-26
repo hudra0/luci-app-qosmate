@@ -258,7 +258,7 @@ var TimeSeriesChart = {
 // translations as well. A plain English keyword match such as
 // title.includes('Egress') dropped every table and chart in a non-English UI.
 var qosmateEgressHeadings = [
-    'CAKE Egress Statistics - eth1',
+    'CAKE Egress Statistics',
     'CAKE Statistics for Default Class (Egress)',
     'Egress Bytes Sent by Class',
     'Egress Bytes Sent by Tin',
@@ -272,7 +272,7 @@ var qosmateEgressHeadings = [
 ];
 
 var qosmateIngressHeadings = [
-    'CAKE Ingress Statistics - eth1',
+    'CAKE Ingress Statistics',
     'CAKE Statistics for Default Class (Ingress)',
     'HFSC Ingress Class Statistics',
     'HTB Ingress Class Statistics',
@@ -486,7 +486,7 @@ return view.extend({
             // Create table for CAKE egress tins
             if (egressRows.length > 0) {
                 result.tables.push(self.createStatsTable(
-                    _('CAKE Egress Statistics - eth1'),
+                    _('CAKE Egress Statistics'),
                     [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
                     egressRows
                 ));
@@ -557,7 +557,7 @@ return view.extend({
             // Create table for CAKE ingress tins
             if (ingressRows.length > 0) {
                 result.tables.push(self.createStatsTable(
-                    _('CAKE Ingress Statistics - eth1'),
+                    _('CAKE Ingress Statistics'),
                     [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
                     ingressRows
                 ));

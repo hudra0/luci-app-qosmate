@@ -889,11 +889,11 @@ msgstr "突发系数"
 msgid "CAKE - Common Applications Kept Enhanced. Configure CAKE-specific parameters in the CAKE tab."
 msgstr "CAKE - 通用应用保持增强。在 CAKE 标签页中配置 CAKE 专属参数。"
 
-msgid "CAKE Egress Statistics - eth1"
-msgstr "CAKE 出口统计 - eth1"
+msgid "CAKE Egress Statistics"
+msgstr "CAKE 出口统计"
 
-msgid "CAKE Ingress Statistics - eth1"
-msgstr "CAKE 入口统计 - eth1"
+msgid "CAKE Ingress Statistics"
+msgstr "CAKE 入口统计"
 
 msgid "CAKE Statistics for Default Class (Egress)"
 msgstr "默认类的 CAKE 统计（出口）"
