@@ -1,3 +1,5 @@
+msgid ""
+msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Language: zh_CN\n"
@@ -305,9 +307,6 @@ msgstr "PPPoE PTM"
 msgid "Bridged PTM"
 msgstr "桥接 PTM"
 
-msgid "Set the overhead"
-msgstr "设置开销"
-
 msgid "Default: based on preset"
 msgstr "默认值: 基于预设"
 
@@ -377,9 +376,6 @@ msgstr "为出口设置 ACK 过滤器。如果下载/上传比率≥15，将自�
 msgid "Auto"
 msgstr "自动"
 
-msgid "Enable"
-msgstr "启用"
-
 msgid "Disable"
 msgstr "禁用"
 
@@ -409,9 +405,6 @@ msgstr "额外参数（出口）"
 
 msgid "Set extra parameters for egress"
 msgstr "设置出站的额外参数"
-
-msgid "Failed to save settings or update QoSmate service: "
-msgstr "保存设置或更新 QoSmate 服务失败："
 
 msgid "QoSmate Advanced Settings"
 msgstr "QoSmate 高级设置"
@@ -506,17 +499,11 @@ msgstr "TCP 连接的最大段大小。此设置仅在上传或下载带宽小�
 msgid "Default: 536"
 msgstr "默认值：536"
 
-msgid "Failed to save settings or update QoSmate service: "
-msgstr "保存设置或更新 QoSmate 服务失败："
-
 msgid "QoSmate Rules"
 msgstr "QoSmate 规则"
 
 msgid "Configure QoS rules for marking packets with DSCP values."
 msgstr "配置 QoS 规则以标记具有 DSCP 值的数据包。"
-
-msgid "Rules"
-msgstr "规则"
 
 msgid "General Settings"
 msgstr "常规设置"
@@ -659,12 +646,6 @@ msgstr "CS0 - 最佳努力 (0)"
 msgid "Enable counter"
 msgstr "启用计数器"
 
-msgid "Enable"
-msgstr "启用"
-
-msgid "Failed to save settings or update QoSmate service: "
-msgstr "保存设置或更新 QoSmate 服务失败："
-
 msgid "Custom rules have been saved and applied."
 msgstr "自定义规则已保存并应用。"
 
@@ -769,9 +750,6 @@ msgstr "最大 PPS"
 
 msgid "Avg BPS"
 msgstr "平均 BPS"
-
-msgid "Protocol"
-msgstr "协议"
 
 msgid "Source"
 msgstr "来源"
@@ -953,6 +931,9 @@ msgstr "组件"
 msgid "Components are using different update channels (%s/%s). Continue with %s channel?"
 msgstr "组件使用了不同的更新频道（%s/%s）。是否继续使用 %s 频道？"
 
+msgid "Config"
+msgstr "配置"
+
 msgid "Configure link layer adaptation settings. For detailed information about different link types and overhead calculations, please check the "
 msgstr "配置链路层适配设置。有关不同链路类型和开销计算的详细信息，请查看 "
 
@@ -1021,6 +1002,12 @@ msgstr "定义 IP 地址组，可在 QoS 规则中通过 @setname 引用"
 
 msgid "Description"
 msgstr "描述"
+
+msgid "Downgrades TCP flows exceeding ~10 seconds worth of data transfer to CS1 (Bulk). Helps prevent large downloads from starving other traffic."
+msgstr "将传输数据量超过约 10 秒的 TCP 流降级为 CS1（批量）。有助于防止大文件下载挤占其他流量。"
+
+msgid "Downgrades the first ~500ms of TCP traffic (except CS1) to CS0 to prevent initial bursts"
+msgstr "将 TCP 流量的前约 500 毫秒（CS1 除外）降级为 CS0，以防止初始突发。"
 
 msgid "Download Bandwidth"
 msgstr "下载带宽"
@@ -1523,6 +1510,9 @@ msgstr "超限数"
 msgid "Override automatic overhead. For HFSC/HTB: Ethernet=40, DOCSIS=25, ATM=44. CAKE will add this to its preset."
 msgstr "覆盖自动开销。对于 HFSC/HTB：以太网=40、DOCSIS=25、ATM=44。CAKE 会将此值叠加到其预设上。"
 
+msgid "Packages"
+msgstr "软件包"
+
 msgid "Pareto"
 msgstr "Pareto"
 
@@ -1637,6 +1627,9 @@ msgstr "选择应用 NETEM 延迟/抖动设置的方向"
 msgid "Select your connection type for overhead calculation. Used by all QDiscs (HTB, HFSC, Hybrid, CAKE)."
 msgstr "选择用于开销计算的连接类型。适用于所有队列规则（HTB、HFSC、混合、CAKE）。"
 
+msgid "Service"
+msgstr "服务"
+
 msgid "Service Status & Control"
 msgstr "服务状态与控制"
 
@@ -1663,12 +1656,6 @@ msgstr "以 kbps 为单位设置下载速率。设为 0 将禁用入口整形（
 
 msgid "Set the upload rate in kbps. 0 disables egress shaping."
 msgstr "以 kbps 为单位设置上传速率。设为 0 将禁用出口整形。"
-
-msgid "Sets CAKE\\'s diffserv mode for incoming traffic"
-msgstr "为入站流量设置 CAKE 的 diffserv 模式"
-
-msgid "Sets CAKE\\'s diffserv mode for outgoing traffic"
-msgstr "为出站流量设置 CAKE 的 diffserv 模式"
 
 msgid "Shaping Direction"
 msgstr "整形方向"
@@ -1700,11 +1687,14 @@ msgstr "稀疏延迟"
 msgid "Speed Test Results"
 msgstr "测速结果"
 
-msgid "Statements only – run inside chain dscptag at hook $NFT_HOOK / priority $NFT_PRIORITY. Do not start with \\'table\\' or \\'chain\\'. Included only if validation passes."
-msgstr "仅限语句 – 在钩子 $NFT_HOOK / 优先级 $NFT_PRIORITY 的 dscptag 链内运行。不要以 \\'table\\' 或 \\'chain\\' 开头。只有验证通过才会包含。"
+msgid "Statements only – run inside chain dscptag at hook $NFT_HOOK / priority $NFT_PRIORITY. Do not start with 'table' or 'chain'. Included only if validation passes."
+msgstr "仅限语句 – 在钩子 $NFT_HOOK / 优先级 $NFT_PRIORITY 的 dscptag 链内运行。不要以 'table' 或 'chain' 开头。只有验证通过才会包含。"
 
 msgid "Static"
 msgstr "静态"
+
+msgid "Statistics"
+msgstr "统计信息"
 
 msgid "Target"
 msgstr "目标"
