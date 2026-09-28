@@ -815,7 +815,7 @@ return view.extend({
                     return base + mqStatus;
                 }
                 case 'hybrid':
-                    return _('Hybrid - HFSC as shaper, Game Qdisc for realtime traffic, CAKE for default traffic and fq_codel for bulk traffic. Configure realtime class settings in HFSC tab and default class settings in CAKE tab.');
+                    return _('Hybrid - HFSC as shaper, Game Qdisc for realtime traffic, CAKE for default traffic and fq_codel / fq_pie for bulk traffic. Configure realtime, bulk class settings in HFSC tab and default class settings in CAKE tab.');
                 case 'htb':
                     return _('HTB - Hierarchical Token Bucket. Simple 3-tier priority system with pre-configured settings - no additional qdisc configuration required.');
                 default:

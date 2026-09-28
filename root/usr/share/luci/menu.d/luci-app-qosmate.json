@@ -89,5 +89,13 @@
             "type": "view",
             "path": "qosmate/statistics"
         }
+    },
+    "admin/network/qosmate/htb": {
+        "title": "HTB",
+        "order": 90,
+        "action": {
+            "type": "view",
+            "path": "qosmate/htb"
+        }
     }
 }

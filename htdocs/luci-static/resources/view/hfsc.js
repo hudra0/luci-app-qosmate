@@ -56,9 +56,9 @@ function addRelevanceInfo(description, settingName, rootQdisc, gameqdisc) {
         
         // Check hybrid-specific settings
         if (rootQdisc === 'hybrid') {
-            if (settingName === 'nongameqdisc' || settingName === 'nongameqdiscoptions') {
+            if (settingName === 'nongameqdiscoptions') {
                 isRelevant = false;
-                note = ' ⚠ Hybrid mode uses CAKE for default class and fq_codel for bulk traffic';
+                note = ' ⚠ Hybrid mode uses CAKE for default class and fq_codel / fq_pie for bulk traffic';
             }
         }
         
@@ -124,7 +124,7 @@ return view.extend({
             if (rootQdisc === 'hfsc') {
                 relevanceText = _('HFSC mode active.');
             } else if (rootQdisc === 'hybrid') {
-                relevanceText = _('Hybrid mode - these settings control realtime traffic (high priority class).');
+                relevanceText = _('Hybrid mode - these settings control realtime traffic (high priority class) AND bulk traffic.');
             } else {
                 relevanceText = _('Current Root QDisc is %s - HFSC settings are not used.').format(rootQdisc.toUpperCase());
             }
@@ -158,6 +158,7 @@ return view.extend({
             addRelevanceInfo(_('Queueing method for traffic classified as realtime'), 'gameqdisc', rootQdisc, gameqdisc));
         o.value('pfifo', _('PFIFO'));
         o.value('fq_codel', _('FQ_CODEL'));
+        o.value('fq_pie', _('FQ_PIE'));
         o.value('bfifo', _('BFIFO'));
         o.value('red', _('RED'));
         o.value('netem', _('NETEM'));
@@ -166,11 +167,22 @@ return view.extend({
         createOption('GAMEUP', _('Game Upload (kbps)'), _('Bandwidth reserved for realtime upload traffic'), _('Default: 15% of UPRATE + 400'), 'uinteger');
         createOption('GAMEDOWN', _('Game Download (kbps)'), _('Bandwidth reserved for realtime download traffic'), _('Default: 15% of DOWNRATE + 400'), 'uinteger');
 
-        o = s.option(form.ListValue, 'nongameqdisc', _('Non-Game Queue Discipline'), 
-            addRelevanceInfo(_('Select the queueing discipline for non-realtime traffic'), 'nongameqdisc', rootQdisc, gameqdisc));
-        o.value('fq_codel', _('FQ_CODEL'));
-        o.value('cake', _('CAKE'));
-        o.default = 'fq_codel';
+        if (rootQdisc === 'hfsc') {
+            o = s.option(form.ListValue, 'nongameqdisc', _('Non-Game Queue Discipline'), 
+                addRelevanceInfo(_('Select the queueing discipline for non-realtime traffic'), 'nongameqdisc', rootQdisc, gameqdisc));
+            o.value('fq_codel', _('FQ_CODEL'));
+            o.value('fq_pie', _('FQ_PIE'));
+            o.value('cake', _('CAKE'));
+            o.default = 'fq_codel';
+        }
+        else { // rootQdisc is hybrid, or not relevant
+            o = s.option(form.ListValue, 'nongameqdisc', _('Non-Game Queue Discipline'), 
+                addRelevanceInfo(_('Select the queueing discipline for bulk traffic'), 'nongameqdisc', rootQdisc, gameqdisc));
+            o.value('fq_codel', _('FQ_CODEL'));
+            o.value('fq_pie', _('FQ_PIE'));
+            o.default = 'fq_codel';
+        }
+        
 
         createOption('nongameqdiscoptions', _('Non-Game QDisc Options'), _('Cake options for non-realtime queueing discipline'), _('Default: besteffort ack-filter'));
         createOption('MAXDEL', _('Max Delay (ms)'), _('Target max delay for realtime packets after burst (pfifo, bfifo, red)'), _('Default: 24'), 'uinteger');
