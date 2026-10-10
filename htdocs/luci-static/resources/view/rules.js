@@ -470,6 +470,10 @@ return view.extend({
         };
 
         o = s.taboption('general', form.DynamicList, 'src_ip', _('Source IP'));
+        o.textvalue = function(section_id) {
+            var value = uci.get('qosmate', section_id, 'src_ip');
+            return (!value || !value.length) ? _('ANY') : (Array.isArray(value) ? value.join(' ') : value);
+        };
         o.datatype = 'string';
         o.placeholder = _('IP address, range, @setname or ::suffix/::mask');
         o.rmempty = true;
@@ -484,6 +488,10 @@ return view.extend({
         };
         
         o = s.taboption('general', form.DynamicList, 'src_port', _('Source port'));
+        o.textvalue = function(section_id) {
+            var value = uci.get('qosmate', section_id, 'src_port');
+            return (!value || !value.length) ? _('ANY') : (Array.isArray(value) ? value.join(' ') : value);
+        };
 		o.datatype = 'list(neg(portrange))';
         o.placeholder = _('any');
         o.rmempty = true;
@@ -512,6 +520,10 @@ return view.extend({
         };
         
         o = s.taboption('general', form.DynamicList, 'dest_ip', _('Destination IP'));
+        o.textvalue = function(section_id) {
+            var value = uci.get('qosmate', section_id, 'dest_ip');
+            return (!value || !value.length) ? _('ANY') : (Array.isArray(value) ? value.join(' ') : value);
+        };
         o.datatype = 'string';
         o.placeholder = _('IP address, range, @setname or ::suffix/::mask');
         o.rmempty = true;
@@ -526,6 +538,10 @@ return view.extend({
         };
         
         o = s.taboption('general', form.DynamicList, 'dest_port', _('Destination port'));
+        o.textvalue = function(section_id) {
+            var value = uci.get('qosmate', section_id, 'dest_port');
+            return (!value || !value.length) ? _('ANY') : (Array.isArray(value) ? value.join(' ') : value);
+        };
 		o.datatype = 'list(neg(portrange))';
         o.placeholder = _('any');
         o.rmempty = true;
