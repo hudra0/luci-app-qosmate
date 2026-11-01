@@ -190,10 +190,10 @@ return view.extend({
         o.value('prerouting', _('prerouting (Runs BEFORE Passwall / Ingress classification)'));
         o.value('forward', _('forward'));
         o.value('postrouting', _('postrouting'));
-        o.default = 'forward';
+        o.default = 'prerouting';
         o.rmempty = false;
 
-        createOption('NFT_PRIORITY', _('Nftables Priority'), _('Set the priority for the nftables chain. Lower values are processed earlier. Default is 0 | mangle is -150.'), _('0'), 'integer');
+        createOption('NFT_PRIORITY', _('Nftables Priority'), _('Set the priority for the nftables chain. Lower values are processed earlier. Prerouting priority -160 runs before transparent proxy / mangle (-150).'), _('-160'), 'integer');
 
         // Autorate Settings Section
         s = m.section(form.NamedSection, 'autorate', 'autorate', _('Autorate Settings'),
