@@ -387,52 +387,97 @@ return view.extend({
         ]);
     },
 
-    // Create a simple chart using DOM elements
+    // Create an elegant, responsive chart with zero label overlap and adaptive sqrt scaling
     createChart: function(id, title, data, labels, colors) {
-        var container = E('div', { 'class': 'chart-container', 'style': 'height: 250px; margin-bottom: 10px;' });
-        var chartTitle = E('h3', { 'style': 'margin-bottom: 1.5em;' }, title);
+        var container = E('div', { 
+            'class': 'chart-container', 
+            'style': 'background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column;' 
+        });
         
+        var chartTitle = E('h3', { 'style': 'margin: 0 0 14px 0; font-size: 14px; font-weight: 600;' }, title);
         container.appendChild(chartTitle);
         
-        // Simple bar chart implementation
-        var chartData = E('div', { 'class': 'chart-data', 'style': 'display: flex; height: 180px; margin-top: 5px; align-items: flex-end;' });
+        var chartData = E('div', { 
+            'class': 'chart-data', 
+            'style': 'display: flex; height: 160px; margin-top: 5px; align-items: flex-end; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.12);' 
+        });
         
         if (data && data.length > 0) {
             var maxValue = Math.max.apply(null, data);
             
             for (var i = 0; i < data.length; i++) {
                 var value = data[i];
-                var barHeight = maxValue > 0 ? (value / maxValue * 160) : 0;
+                var barHeight = 2;
+                if (value > 0 && maxValue > 0) {
+                    var ratio = value / maxValue;
+                    // Adaptive Sqrt Scaling: zooms in on small packets (Gaming, DNS, Voice)
+                    // so fine details are visible even when a background download is 1000x larger!
+                    barHeight = Math.max(6, Math.round(Math.sqrt(ratio) * 125));
+                }
+                var color = colors ? colors[i % colors.length] : '#0088cc';
+                var fullLabel = labels ? labels[i] : ('Tin ' + i);
+                var shortTag = 'T' + i;
+                
+                var formattedVal = '0';
+                if (typeof value === 'number') {
+                    if (value > 1000000) formattedVal = (value / 1000000).toFixed(1) + 'M';
+                    else if (value > 1000) formattedVal = (value / 1000).toFixed(1) + 'K';
+                    else formattedVal = String(value);
+                }
                 
                 var barContainer = E('div', { 
-                    'style': 'flex: 1; text-align: center; padding: 0 2px; display: flex; flex-direction: column; align-items: center;' 
+                    'style': 'flex: 1; text-align: center; padding: 0 2px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; cursor: pointer;',
+                    'title': fullLabel + ' : ' + formattedVal
                 });
                 
-                // Add value at top of bar
-                var valueLabel = E('div', { 'style': 'font-size: 10px; margin-bottom: 5px;' }, 
-                                 (typeof value === 'number') ? 
-                                 (value > 1000000 ? (value / 1000000).toFixed(1) + 'M' : 
-                                  value > 1000 ? (value / 1000).toFixed(1) + 'K' : value) : '0');
+                var valueLabel = E('div', { 
+                    'style': 'font-size: 10px; margin-bottom: 4px; font-weight: 600; opacity: ' + (value > 0 ? '1' : '0.35') + ';' 
+                }, formattedVal);
                 
                 var bar = E('div', { 
-                    'style': 'background-color: ' + (colors ? colors[i % colors.length] : '#0088cc') + 
-                             '; width: 80%; height: ' + (barHeight > 0 ? barHeight : 1) + 'px;' 
+                    'style': 'background-color: ' + color + '; width: 70%; max-width: 28px; min-width: 12px; height: ' + (barHeight > 0 ? barHeight : 2) + 'px; border-radius: 4px 4px 0 0; opacity: ' + (value > 0 ? '0.95' : '0.25') + '; transition: height 0.3s ease;' 
                 });
                 
-                var label = E('div', { 'style': 'font-size: 10px; margin-top: 5px; white-space: nowrap;' }, 
-                             labels ? labels[i] : '');
+                var tagBadge = E('div', { 
+                    'style': 'font-size: 11px; font-weight: bold; margin-top: 6px; color: ' + color + ';' 
+                }, shortTag);
                 
                 barContainer.appendChild(valueLabel);
                 barContainer.appendChild(bar);
-                barContainer.appendChild(label);
+                barContainer.appendChild(tagBadge);
                 chartData.appendChild(barContainer);
             }
+            
+            container.appendChild(chartData);
+            
+            // Clean, wrapped legend grid underneath bars - 100% immune to overlap
+            var legendContainer = E('div', { 
+                'style': 'display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; margin-top: 12px; font-size: 11px;' 
+            });
+            
+            for (var j = 0; j < data.length; j++) {
+                var c = colors ? colors[j % colors.length] : '#0088cc';
+                var lbl = labels ? labels[j] : ('Tin ' + j);
+                var cleanName = lbl.replace(/^Tin\s*\d+\s*:\s*/i, '');
+                
+                var legendItem = E('div', { 
+                    'style': 'display: inline-flex; align-items: center; white-space: nowrap;' 
+                }, [
+                    E('span', { 
+                        'style': 'display: inline-block; width: 10px; height: 10px; border-radius: 3px; background-color: ' + c + '; margin-right: 5px; flex-shrink: 0;' 
+                    }),
+                    E('span', { 'style': 'opacity: 0.88;' }, 'T' + j + ': ' + cleanName)
+                ]);
+                legendContainer.appendChild(legendItem);
+            }
+            
+            container.appendChild(legendContainer);
         } else {
-            chartData.appendChild(E('div', { 'style': 'width: 100%; text-align: center; padding-top: 70px;' }, 
+            chartData.appendChild(E('div', { 'style': 'width: 100%; text-align: center; padding-top: 60px;' }, 
                                  _('No data available')));
+            container.appendChild(chartData);
         }
         
-        container.appendChild(chartData);
         return container;
     },
 
@@ -444,15 +489,25 @@ return view.extend({
         
         var result = { tables: [], charts: [] };
         var self = this;
+        var diffservColors = ['#4CAF50', '#2196F3', '#FFC107', '#F44336', '#9C27B0', '#795548', '#FF9800', '#607D8B'];
         
         // Helper function to get tin name based on diffserv mode
         function getTinName(tinIndex, diffservMode) {
             if (diffservMode === 'diffserv3') {
-                return ['Bulk', 'Best Effort', 'Voice'][tinIndex] || 'Unknown';
+                return ['Bulk (Tin 0)', 'Best Effort (Tin 1)', 'Voice (Tin 2)'][tinIndex] || ('Tin ' + tinIndex);
             } else if (diffservMode === 'diffserv4') {
-                return ['Bulk', 'Best Effort', 'Video', 'Voice'][tinIndex] || 'Unknown';
+                return ['Bulk (Tin 0)', 'Best Effort (Tin 1)', 'Video (Tin 2)', 'Voice (Tin 3)'][tinIndex] || ('Tin ' + tinIndex);
             } else if (diffservMode === 'diffserv8') {
-                return ['Tin 0', 'Tin 1', 'Tin 2', 'Tin 3', 'Tin 4', 'Tin 5', 'Tin 6', 'Tin 7'][tinIndex] || 'Unknown';
+                return [
+                    _('Tin 0: Background (Torrent / P2P)'),
+                    _('Tin 1: High Throughput (Bulk Downloads)'),
+                    _('Tin 2: Best Effort (General Web / HTTPS)'),
+                    _('Tin 3: Video Streaming (RTMP / Calls)'),
+                    _('Tin 4: Low-Latency APIs (Matchmaking)'),
+                    _('Tin 5: Voice (Discord / WebRTC) & SSH'),
+                    _('Tin 6: Gaming Dedicated (Lowest Latency)'),
+                    _('Tin 7: Network Control (DNS & NTP)')
+                ][tinIndex] || ('Tin ' + tinIndex);
             } else {
                 return 'Tin ' + tinIndex;
             }
@@ -503,12 +558,13 @@ return view.extend({
                 var sentPackets = egressRows.map(function(row) { return parseInt(row[8]); });
                 var droppedPackets = egressRows.map(function(row) { return parseInt(row[9]); });
                 
+                var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
                 result.charts.push(self.createChart(
                     'cake-egress-bytes',
                     _('Egress Bytes Sent by Tin'),
                     sentBytes,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
                 
                 result.charts.push(self.createChart(
@@ -516,7 +572,7 @@ return view.extend({
                     _('Egress Packets Sent by Tin'),
                     sentPackets,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
                 
                 result.charts.push(self.createChart(
@@ -524,7 +580,7 @@ return view.extend({
                     _('Egress Dropped Packets by Tin'),
                     droppedPackets,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
             }
         }
@@ -574,12 +630,13 @@ return view.extend({
                 var sentPackets = ingressRows.map(function(row) { return parseInt(row[8]); });
                 var droppedPackets = ingressRows.map(function(row) { return parseInt(row[9]); });
                 
+                var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
                 result.charts.push(self.createChart(
                     'cake-ingress-bytes',
                     _('Ingress Bytes Sent by Tin'),
                     sentBytes,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
                 
                 result.charts.push(self.createChart(
@@ -587,7 +644,7 @@ return view.extend({
                     _('Ingress Packets Sent by Tin'),
                     sentPackets,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
                 
                 result.charts.push(self.createChart(
@@ -595,7 +652,7 @@ return view.extend({
                     _('Ingress Dropped Packets by Tin'),
                     droppedPackets,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
             }
         }
