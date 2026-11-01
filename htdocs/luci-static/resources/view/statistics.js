@@ -253,6 +253,52 @@ var TimeSeriesChart = {
     }
 };
 
+// Statistics tables and charts are rendered with translated headings, so they
+// have to be grouped into the Egress/Ingress tabs by comparing against the
+// translations as well. A plain English keyword match such as
+// title.includes('Egress') dropped every table and chart in a non-English UI.
+var qosmateEgressHeadings = [
+    'CAKE Egress Statistics',
+    'CAKE Statistics for Default Class (Egress)',
+    'Egress Bytes Sent by Class',
+    'Egress Bytes Sent by Tin',
+    'Egress Dropped Packets by Class',
+    'Egress Dropped Packets by Tin',
+    'Egress Packets Sent by Class',
+    'Egress Packets Sent by Tin',
+    'HFSC Egress Class Statistics',
+    'HTB Egress Class Statistics',
+    'Hybrid Egress Class Statistics'
+];
+
+var qosmateIngressHeadings = [
+    'CAKE Ingress Statistics',
+    'CAKE Statistics for Default Class (Ingress)',
+    'HFSC Ingress Class Statistics',
+    'HTB Ingress Class Statistics',
+    'Hybrid Ingress Class Statistics',
+    'Ingress Bytes Sent by Class',
+    'Ingress Bytes Sent by Tin',
+    'Ingress Dropped Packets by Class',
+    'Ingress Dropped Packets by Tin',
+    'Ingress Packets Sent by Class',
+    'Ingress Packets Sent by Tin'
+];
+
+var isEgressHeading = function(heading) {
+    for (var i = 0; i < qosmateEgressHeadings.length; i++)
+        if (heading === _(qosmateEgressHeadings[i]))
+            return true;
+    return false;
+};
+
+var isIngressHeading = function(heading) {
+    for (var i = 0; i < qosmateIngressHeadings.length; i++)
+        if (heading === _(qosmateIngressHeadings[i]))
+            return true;
+    return false;
+};
+
 // Main view
 return view.extend({
     pollInterval: 5,
@@ -341,52 +387,97 @@ return view.extend({
         ]);
     },
 
-    // Create a simple chart using DOM elements
+    // Create an elegant, responsive chart with zero label overlap and adaptive sqrt scaling
     createChart: function(id, title, data, labels, colors) {
-        var container = E('div', { 'class': 'chart-container', 'style': 'height: 250px; margin-bottom: 10px;' });
-        var chartTitle = E('h3', { 'style': 'margin-bottom: 1.5em;' }, title);
+        var container = E('div', { 
+            'class': 'chart-container', 
+            'style': 'background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column;' 
+        });
         
+        var chartTitle = E('h3', { 'style': 'margin: 0 0 14px 0; font-size: 14px; font-weight: 600;' }, title);
         container.appendChild(chartTitle);
         
-        // Simple bar chart implementation
-        var chartData = E('div', { 'class': 'chart-data', 'style': 'display: flex; height: 180px; margin-top: 5px; align-items: flex-end;' });
+        var chartData = E('div', { 
+            'class': 'chart-data', 
+            'style': 'display: flex; height: 160px; margin-top: 5px; align-items: flex-end; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.12);' 
+        });
         
         if (data && data.length > 0) {
             var maxValue = Math.max.apply(null, data);
             
             for (var i = 0; i < data.length; i++) {
                 var value = data[i];
-                var barHeight = maxValue > 0 ? (value / maxValue * 160) : 0;
+                var barHeight = 2;
+                if (value > 0 && maxValue > 0) {
+                    var ratio = value / maxValue;
+                    // Adaptive Sqrt Scaling: zooms in on small packets (Gaming, DNS, Voice)
+                    // so fine details are visible even when a background download is 1000x larger!
+                    barHeight = Math.max(6, Math.round(Math.sqrt(ratio) * 125));
+                }
+                var color = colors ? colors[i % colors.length] : '#0088cc';
+                var fullLabel = labels ? labels[i] : ('Tin ' + i);
+                var shortTag = 'T' + i;
+                
+                var formattedVal = '0';
+                if (typeof value === 'number') {
+                    if (value > 1000000) formattedVal = (value / 1000000).toFixed(1) + 'M';
+                    else if (value > 1000) formattedVal = (value / 1000).toFixed(1) + 'K';
+                    else formattedVal = String(value);
+                }
                 
                 var barContainer = E('div', { 
-                    'style': 'flex: 1; text-align: center; padding: 0 2px; display: flex; flex-direction: column; align-items: center;' 
+                    'style': 'flex: 1; text-align: center; padding: 0 2px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; cursor: pointer;',
+                    'title': fullLabel + ' : ' + formattedVal
                 });
                 
-                // Add value at top of bar
-                var valueLabel = E('div', { 'style': 'font-size: 10px; margin-bottom: 5px;' }, 
-                                 (typeof value === 'number') ? 
-                                 (value > 1000000 ? (value / 1000000).toFixed(1) + 'M' : 
-                                  value > 1000 ? (value / 1000).toFixed(1) + 'K' : value) : '0');
+                var valueLabel = E('div', { 
+                    'style': 'font-size: 10px; margin-bottom: 4px; font-weight: 600; opacity: ' + (value > 0 ? '1' : '0.35') + ';' 
+                }, formattedVal);
                 
                 var bar = E('div', { 
-                    'style': 'background-color: ' + (colors ? colors[i % colors.length] : '#0088cc') + 
-                             '; width: 80%; height: ' + (barHeight > 0 ? barHeight : 1) + 'px;' 
+                    'style': 'background-color: ' + color + '; width: 70%; max-width: 28px; min-width: 12px; height: ' + (barHeight > 0 ? barHeight : 2) + 'px; border-radius: 4px 4px 0 0; opacity: ' + (value > 0 ? '0.95' : '0.25') + '; transition: height 0.3s ease;' 
                 });
                 
-                var label = E('div', { 'style': 'font-size: 10px; margin-top: 5px; white-space: nowrap;' }, 
-                             labels ? labels[i] : '');
+                var tagBadge = E('div', { 
+                    'style': 'font-size: 11px; font-weight: bold; margin-top: 6px; color: ' + color + ';' 
+                }, shortTag);
                 
                 barContainer.appendChild(valueLabel);
                 barContainer.appendChild(bar);
-                barContainer.appendChild(label);
+                barContainer.appendChild(tagBadge);
                 chartData.appendChild(barContainer);
             }
+            
+            container.appendChild(chartData);
+            
+            // Clean, wrapped legend grid underneath bars - 100% immune to overlap
+            var legendContainer = E('div', { 
+                'style': 'display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; margin-top: 12px; font-size: 11px;' 
+            });
+            
+            for (var j = 0; j < data.length; j++) {
+                var c = colors ? colors[j % colors.length] : '#0088cc';
+                var lbl = labels ? labels[j] : ('Tin ' + j);
+                var cleanName = lbl.replace(/^Tin\s*\d+\s*:\s*/i, '');
+                
+                var legendItem = E('div', { 
+                    'style': 'display: inline-flex; align-items: center; white-space: nowrap;' 
+                }, [
+                    E('span', { 
+                        'style': 'display: inline-block; width: 10px; height: 10px; border-radius: 3px; background-color: ' + c + '; margin-right: 5px; flex-shrink: 0;' 
+                    }),
+                    E('span', { 'style': 'opacity: 0.88;' }, 'T' + j + ': ' + cleanName)
+                ]);
+                legendContainer.appendChild(legendItem);
+            }
+            
+            container.appendChild(legendContainer);
         } else {
-            chartData.appendChild(E('div', { 'style': 'width: 100%; text-align: center; padding-top: 70px;' }, 
+            chartData.appendChild(E('div', { 'style': 'width: 100%; text-align: center; padding-top: 60px;' }, 
                                  _('No data available')));
+            container.appendChild(chartData);
         }
         
-        container.appendChild(chartData);
         return container;
     },
 
@@ -398,15 +489,25 @@ return view.extend({
         
         var result = { tables: [], charts: [] };
         var self = this;
+        var diffservColors = ['#4CAF50', '#2196F3', '#FFC107', '#F44336', '#9C27B0', '#795548', '#FF9800', '#607D8B'];
         
         // Helper function to get tin name based on diffserv mode
         function getTinName(tinIndex, diffservMode) {
             if (diffservMode === 'diffserv3') {
-                return ['Bulk', 'Best Effort', 'Voice'][tinIndex] || 'Unknown';
+                return ['Bulk (Tin 0)', 'Best Effort (Tin 1)', 'Voice (Tin 2)'][tinIndex] || ('Tin ' + tinIndex);
             } else if (diffservMode === 'diffserv4') {
-                return ['Bulk', 'Best Effort', 'Video', 'Voice'][tinIndex] || 'Unknown';
+                return ['Bulk (Tin 0)', 'Best Effort (Tin 1)', 'Video (Tin 2)', 'Voice (Tin 3)'][tinIndex] || ('Tin ' + tinIndex);
             } else if (diffservMode === 'diffserv8') {
-                return ['Tin 0', 'Tin 1', 'Tin 2', 'Tin 3', 'Tin 4', 'Tin 5', 'Tin 6', 'Tin 7'][tinIndex] || 'Unknown';
+                return [
+                    _('Tin 0: Background (Torrent / P2P)'),
+                    _('Tin 1: High Throughput (Bulk Downloads)'),
+                    _('Tin 2: Best Effort (General Web / HTTPS)'),
+                    _('Tin 3: Video Streaming (RTMP / Calls)'),
+                    _('Tin 4: Low-Latency APIs (Matchmaking)'),
+                    _('Tin 5: Voice (Discord / WebRTC) & SSH'),
+                    _('Tin 6: Gaming Dedicated (Lowest Latency)'),
+                    _('Tin 7: Network Control (DNS & NTP)')
+                ][tinIndex] || ('Tin ' + tinIndex);
             } else {
                 return 'Tin ' + tinIndex;
             }
@@ -440,7 +541,7 @@ return view.extend({
             // Create table for CAKE egress tins
             if (egressRows.length > 0) {
                 result.tables.push(self.createStatsTable(
-                    _('CAKE Egress Statistics - eth1'),
+                    _('CAKE Egress Statistics'),
                     [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
                     egressRows
                 ));
@@ -457,12 +558,13 @@ return view.extend({
                 var sentPackets = egressRows.map(function(row) { return parseInt(row[8]); });
                 var droppedPackets = egressRows.map(function(row) { return parseInt(row[9]); });
                 
+                var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
                 result.charts.push(self.createChart(
                     'cake-egress-bytes',
                     _('Egress Bytes Sent by Tin'),
                     sentBytes,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
                 
                 result.charts.push(self.createChart(
@@ -470,7 +572,7 @@ return view.extend({
                     _('Egress Packets Sent by Tin'),
                     sentPackets,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
                 
                 result.charts.push(self.createChart(
@@ -478,7 +580,7 @@ return view.extend({
                     _('Egress Dropped Packets by Tin'),
                     droppedPackets,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
             }
         }
@@ -511,7 +613,7 @@ return view.extend({
             // Create table for CAKE ingress tins
             if (ingressRows.length > 0) {
                 result.tables.push(self.createStatsTable(
-                    _('CAKE Ingress Statistics - eth1'),
+                    _('CAKE Ingress Statistics'),
                     [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
                     ingressRows
                 ));
@@ -528,12 +630,13 @@ return view.extend({
                 var sentPackets = ingressRows.map(function(row) { return parseInt(row[8]); });
                 var droppedPackets = ingressRows.map(function(row) { return parseInt(row[9]); });
                 
+                var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
                 result.charts.push(self.createChart(
                     'cake-ingress-bytes',
                     _('Ingress Bytes Sent by Tin'),
                     sentBytes,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
                 
                 result.charts.push(self.createChart(
@@ -541,7 +644,7 @@ return view.extend({
                     _('Ingress Packets Sent by Tin'),
                     sentPackets,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
                 
                 result.charts.push(self.createChart(
@@ -549,7 +652,7 @@ return view.extend({
                     _('Ingress Dropped Packets by Tin'),
                     droppedPackets,
                     tinLabels,
-                    chartColors
+                    cakeColors
                 ));
             }
         }
@@ -1492,6 +1595,21 @@ return view.extend({
                 infoContainer.appendChild(row);
             }
             
+            // A rate of 0 disables that direction, so one of the tabs stays empty on purpose
+            var statsUpRate = parseInt(uci.get('qosmate', 'settings', 'UPRATE') || '0');
+            var statsDownRate = parseInt(uci.get('qosmate', 'settings', 'DOWNRATE') || '0');
+            if (statsUpRate === 0 || statsDownRate === 0) {
+                var dirText = statsUpRate === 0 && statsDownRate === 0
+                    ? _('disabled in both directions (both rates are 0)')
+                    : (statsDownRate === 0 ? _('egress only (DOWNRATE=0, no ingress statistics)')
+                                           : _('ingress only (UPRATE=0, no egress statistics)'));
+                var row = E('div', { 'style': 'margin-right: 1.5em; margin-bottom: 0.3em; color: orange;' });
+                row.appendChild(E('span', { 'style': 'font-weight: bold;' }, _('Shaping:')));
+                row.appendChild(document.createTextNode(' '));
+                row.appendChild(E('span', {}, dirText));
+                infoContainer.appendChild(row);
+            }
+            
             // Add CAKE-specific or HFSC-specific info
             if (qosStats.root_qdisc === 'cake') {
                 if (qosStats.priority_queue_ingress) {
@@ -1606,9 +1724,9 @@ return view.extend({
                         var titleElement = cakeResults.tables[i].querySelector('h3, .table-title');
                         if (titleElement) {
                             var title = titleElement.textContent || titleElement.innerText;
-                            if (title.includes('Egress')) {
+                            if (isEgressHeading(title)) {
                                 egressTable = cakeResults.tables[i];
-                            } else if (title.includes('Ingress')) {
+                            } else if (isIngressHeading(title)) {
                                 ingressTable = cakeResults.tables[i];
                             }
                         }
@@ -1634,9 +1752,9 @@ return view.extend({
                             var chartTitle = cakeResults.charts[i].querySelector('h3');
                             var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
                             
-                            if (titleText.includes('Egress')) {
+                            if (isEgressHeading(titleText)) {
                                 egressCharts.push(cakeResults.charts[i]);
-                            } else if (titleText.includes('Ingress')) {
+                            } else if (isIngressHeading(titleText)) {
                                 ingressCharts.push(cakeResults.charts[i]);
                             }
                         }
@@ -1686,9 +1804,9 @@ return view.extend({
                         var titleElement = hfscResults.tables[i].querySelector('h3, .table-title');
                         if (titleElement) {
                             var title = titleElement.textContent || titleElement.innerText;
-                            if (title.includes('Egress')) {
+                            if (isEgressHeading(title)) {
                                 egressTable = hfscResults.tables[i];
-                            } else if (title.includes('Ingress')) {
+                            } else if (isIngressHeading(title)) {
                                 ingressTable = hfscResults.tables[i];
                             }
                         }
@@ -1714,9 +1832,9 @@ return view.extend({
                             var chartTitle = hfscResults.charts[i].querySelector('h3');
                             var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
                             
-                            if (titleText.includes('Egress')) {
+                            if (isEgressHeading(titleText)) {
                                 egressCharts.push(hfscResults.charts[i]);
-                            } else if (titleText.includes('Ingress')) {
+                            } else if (isIngressHeading(titleText)) {
                                 ingressCharts.push(hfscResults.charts[i]);
                             }
                         }
@@ -1768,13 +1886,13 @@ return view.extend({
                         var titleElement = hybridResults.tables[i].querySelector('h3, .table-title');
                         if (titleElement) {
                             var title = titleElement.textContent || titleElement.innerText;
-                            if (title.includes('Hybrid Egress Class')) {
+                            if (title === _('Hybrid Egress Class Statistics')) {
                                 egressClassTable = hybridResults.tables[i];
-                            } else if (title.includes('Hybrid Ingress Class')) {
+                            } else if (title === _('Hybrid Ingress Class Statistics')) {
                                 ingressClassTable = hybridResults.tables[i];
-                            } else if (title.includes('CAKE') && title.includes('Egress')) {
+                            } else if (title === _('CAKE Statistics for Default Class (Egress)')) {
                                 cakeEgressTable = hybridResults.tables[i];
-                            } else if (title.includes('CAKE') && title.includes('Ingress')) {
+                            } else if (title === _('CAKE Statistics for Default Class (Ingress)')) {
                                 cakeIngressTable = hybridResults.tables[i];
                             }
                         }
@@ -1805,9 +1923,9 @@ return view.extend({
                             var chartTitle = hybridResults.charts[i].querySelector('h3');
                             var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
                             
-                            if (titleText.includes('Egress')) {
+                            if (isEgressHeading(titleText)) {
                                 egressCharts.push(hybridResults.charts[i]);
-                            } else if (titleText.includes('Ingress')) {
+                            } else if (isIngressHeading(titleText)) {
                                 ingressCharts.push(hybridResults.charts[i]);
                             }
                         }
@@ -1857,9 +1975,9 @@ return view.extend({
                         var titleElement = htbResults.tables[i].querySelector('h3, .table-title');
                         if (titleElement) {
                             var title = titleElement.textContent || titleElement.innerText;
-                            if (title.includes('HTB Egress Class')) {
+                            if (title === _('HTB Egress Class Statistics')) {
                                 egressClassTable = htbResults.tables[i];
-                            } else if (title.includes('HTB Ingress Class')) {
+                            } else if (title === _('HTB Ingress Class Statistics')) {
                                 ingressClassTable = htbResults.tables[i];
                             }
                         }
@@ -1883,9 +2001,9 @@ return view.extend({
                             var chartTitle = htbResults.charts[i].querySelector('h3');
                             var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
                             
-                            if (titleText.includes('Egress')) {
+                            if (isEgressHeading(titleText)) {
                                 egressCharts.push(htbResults.charts[i]);
-                            } else if (titleText.includes('Ingress')) {
+                            } else if (isIngressHeading(titleText)) {
                                 ingressCharts.push(htbResults.charts[i]);
                             }
                         }
