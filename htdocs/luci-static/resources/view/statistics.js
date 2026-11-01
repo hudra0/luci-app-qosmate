@@ -499,14 +499,14 @@ return view.extend({
                 return ['Bulk (Tin 0)', 'Best Effort (Tin 1)', 'Video (Tin 2)', 'Voice (Tin 3)'][tinIndex] || ('Tin ' + tinIndex);
             } else if (diffservMode === 'diffserv8') {
                 return [
-                    _('Tin 0: Background (Torrent / P2P)'),
-                    _('Tin 1: High Throughput (Bulk Downloads)'),
-                    _('Tin 2: Best Effort (General Web / HTTPS)'),
-                    _('Tin 3: Video Streaming (RTMP / Calls)'),
-                    _('Tin 4: Low-Latency APIs (Matchmaking)'),
-                    _('Tin 5: Voice (Discord / WebRTC) & SSH'),
-                    _('Tin 6: Gaming Dedicated (Lowest Latency)'),
-                    _('Tin 7: Network Control (DNS & NTP)')
+                    _('Tin 0: Low Priority (LE / Background)'),
+                    _('Tin 1: High Throughput (AF1x / TOS2 / CS1)'),
+                    _('Tin 2: Best Effort (CS0 / General Traffic)'),
+                    _('Tin 3: Video Streaming (AF3x / AF4x / CS3)'),
+                    _('Tin 4: Low-Latency Transactions (AF2x / TOS4)'),
+                    _('Tin 5: Interactive Shell (CS2 / TOS1 / SSH)'),
+                    _('Tin 6: Minimum Latency (EF / VA / CS4 / CS5)'),
+                    _('Tin 7: Network Control (CS6 / CS7)')
                 ][tinIndex] || ('Tin ' + tinIndex);
             } else {
                 return 'Tin ' + tinIndex;
