@@ -299,8 +299,8 @@ var isLanHeading = function(heading) {
 var isEgressHeading = function(heading) {
     if (!heading) return false;
     if (isLanHeading(heading)) return false;
-    for (var i = 0; i < headingPatterns.length; i++) {
-        if (heading.indexOf(headingPatterns[i]) !== -1 && (heading.indexOf('Egress') !== -1 || heading.indexOf('Upload') !== -1)) return true;
+    for (var i = 0; i < qosmateEgressHeadings.length; i++) {
+        if (heading.indexOf(_(qosmateEgressHeadings[i])) !== -1 || heading.indexOf(qosmateEgressHeadings[i]) !== -1) return true;
     }
     return heading.indexOf('Egress') !== -1 || heading.indexOf('Upload') !== -1;
 };
@@ -308,8 +308,8 @@ var isEgressHeading = function(heading) {
 var isIngressHeading = function(heading) {
     if (!heading) return false;
     if (isLanHeading(heading)) return false;
-    for (var i = 0; i < headingPatterns.length; i++) {
-        if (heading.indexOf(headingPatterns[i]) !== -1 && (heading.indexOf('Ingress') !== -1 || heading.indexOf('Download') !== -1)) return true;
+    for (var i = 0; i < qosmateIngressHeadings.length; i++) {
+        if (heading.indexOf(_(qosmateIngressHeadings[i])) !== -1 || heading.indexOf(qosmateIngressHeadings[i]) !== -1) return true;
     }
     return heading.indexOf('Ingress') !== -1 || heading.indexOf('Download') !== -1;
 };
@@ -331,6 +331,7 @@ return view.extend({
             callQoSmateHistoricalStats(),
             callQoSmateRrdData(),
             callQoSmateAutorateStats(),
+            callQoSmateRuleCounters(),
             uci.load('qosmate')
         ]);
     },
@@ -343,7 +344,8 @@ return view.extend({
                 callQoSmateStats(),
                 callQoSmateHistoricalStats(),
                 callQoSmateRrdData(),
-                callQoSmateAutorateStats()
+                callQoSmateAutorateStats(),
+                callQoSmateRuleCounters()
             ]).then(function(data) {
                 view.updateContent(data);
                 return data;
@@ -2291,6 +2293,11 @@ return view.extend({
                         }
                     }
                 }
+            }
+            
+            // Rules Activity table section
+            if (rulesTabIndex >= 0 && tabContents[rulesTabIndex]) {
+                tabContents[rulesTabIndex].appendChild(this.renderRulesTable(ruleCounters));
             }
             
             // Append tab contents to container
