@@ -1803,11 +1803,6 @@ return view.extend({
             // Create tabbed interface
             var tabsContainer = E('div', { 'class': 'cbi-section', 'style': 'padding: 0; margin-bottom: 5px;' });
             var tabNames = [_('Egress (Upload)'), _('Ingress (Download)')];
-            var lanTabIndex = -1;
-            if (qosStats.cake_lan || qosStats.ifb_lan_interface) {
-                lanTabIndex = tabNames.length;
-                tabNames.push(_('Pre-Proxy LAN (br-lan)'));
-            }
             var rulesTabIndex = tabNames.length;
             tabNames.push(_('Rules Activity'));
             
@@ -1911,27 +1906,12 @@ return view.extend({
                         }
                     }
 
-                    // Egress table section
-                    if (egressTable && tabContents[0]) {
-                        tabContents[0].appendChild(egressTable);
-                    }
+                    // Process charts first so we can pair tables with their charts
+                    var egressCharts = [];
+                    var ingressCharts = [];
+                    var lanCharts = [];
                     
-                    // Ingress table section
-                    if (ingressTable && tabContents[1]) {
-                        tabContents[1].appendChild(ingressTable);
-                    }
-
-                    // Pre-Proxy LAN table section
-                    if (lanTable && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
-                        tabContents[lanTabIndex].appendChild(lanTable);
-                    }
-                    
-                    // Process charts
                     if (cakeResults.charts.length > 0) {
-                        var egressCharts = [];
-                        var ingressCharts = [];
-                        
-                        var lanCharts = [];
                         for (var i = 0; i < cakeResults.charts.length; i++) {
                             var chartTitle = cakeResults.charts[i].querySelector('h3');
                             var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
@@ -1944,48 +1924,52 @@ return view.extend({
                                 ingressCharts.push(cakeResults.charts[i]);
                             }
                         }
-                        
-                        // Create egress charts section
+                    }
+
+                    // 1. Egress (Upload) Tab Content: WAN Egress + Pre-Proxy LAN Shaper
+                    if (tabContents[0]) {
+                        // Section A: WAN Egress (Line-Rate Outbound)
+                        if (egressTable) tabContents[0].appendChild(egressTable);
                         if (egressCharts.length > 0) {
                             var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var egressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
-                            
-                            egressCharts.forEach(function(chart) {
-                                egressGrid.appendChild(chart);
-                            });
-                            
+                            egressCharts.forEach(function(chart) { egressGrid.appendChild(chart); });
                             egressChartsContainer.appendChild(egressGrid);
                             tabContents[0].appendChild(egressChartsContainer);
                         }
-                        
-                        // Create ingress charts section
+
+                        // Section B: Pre-Proxy LAN Shaper (br-lan / Pre-Xray Classification)
+                        if (lanTable) {
+                            var lanDivider = E('div', { 
+                                'style': 'margin-top: 30px; margin-bottom: 18px; border-top: 2px dashed var(--cbi-border, rgba(128,128,128,0.3)); padding-top: 15px;' 
+                            });
+                            tabContents[0].appendChild(lanDivider);
+                            tabContents[0].appendChild(lanTable);
+                        }
+                        if (lanCharts.length > 0) {
+                            var lanChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var lanGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            lanCharts.forEach(function(chart) { lanGrid.appendChild(chart); });
+                            lanChartsContainer.appendChild(lanGrid);
+                            tabContents[0].appendChild(lanChartsContainer);
+                        }
+                    }
+                    
+                    // 2. Ingress (Download) Tab Content: WAN Ingress
+                    if (tabContents[1]) {
+                        if (ingressTable) tabContents[1].appendChild(ingressTable);
                         if (ingressCharts.length > 0) {
                             var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var ingressGrid = E('div', { 
                                 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
                             });
-                            
-                            ingressCharts.forEach(function(chart) {
-                                ingressGrid.appendChild(chart);
-                            });
-                            
+                            ingressCharts.forEach(function(chart) { ingressGrid.appendChild(chart); });
                             ingressChartsContainer.appendChild(ingressGrid);
                             tabContents[1].appendChild(ingressChartsContainer);
-                        }
-
-                        // Create Pre-Proxy LAN charts section
-                        if (lanCharts.length > 0 && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
-                            var lanChartsContainer = E('div', { 'class': 'cbi-section-node' });
-                            var lanGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
-                            });
-                            lanCharts.forEach(function(chart) {
-                                lanGrid.appendChild(chart);
-                            });
-                            lanChartsContainer.appendChild(lanGrid);
-                            tabContents[lanTabIndex].appendChild(lanChartsContainer);
                         }
                     }
                 }
@@ -2033,8 +2017,8 @@ return view.extend({
                     }
 
                     // Pre-Proxy LAN table section
-                    if (lanTable && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
-                        tabContents[lanTabIndex].appendChild(lanTable);
+                    if (lanTable && tabContents[0]) {
+                        tabContents[0].appendChild(lanTable);
                     }
                     
                     // Process charts
@@ -2085,7 +2069,7 @@ return view.extend({
                         }
 
                         // Create Pre-Proxy LAN charts section
-                        if (lanCharts.length > 0 && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
+                        if (lanCharts.length > 0 && tabContents[0]) {
                             var lanChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var lanGrid = E('div', { 
                                 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
@@ -2094,7 +2078,7 @@ return view.extend({
                                 lanGrid.appendChild(chart);
                             });
                             lanChartsContainer.appendChild(lanGrid);
-                            tabContents[lanTabIndex].appendChild(lanChartsContainer);
+                            tabContents[0].appendChild(lanChartsContainer);
                         }
                     }
                 }
@@ -2189,7 +2173,7 @@ return view.extend({
                         }
 
                         // Create Pre-Proxy LAN charts section
-                        if (lanCharts.length > 0 && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
+                        if (lanCharts.length > 0 && tabContents[0]) {
                             var lanChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var lanGrid = E('div', { 
                                 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
@@ -2198,7 +2182,7 @@ return view.extend({
                                 lanGrid.appendChild(chart);
                             });
                             lanChartsContainer.appendChild(lanGrid);
-                            tabContents[lanTabIndex].appendChild(lanChartsContainer);
+                            tabContents[0].appendChild(lanChartsContainer);
                         }
                     }
                 }
@@ -2280,7 +2264,7 @@ return view.extend({
                         }
 
                         // Create Pre-Proxy LAN charts section
-                        if (lanCharts.length > 0 && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
+                        if (lanCharts.length > 0 && tabContents[0]) {
                             var lanChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var lanGrid = E('div', { 
                                 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
@@ -2289,7 +2273,7 @@ return view.extend({
                                 lanGrid.appendChild(chart);
                             });
                             lanChartsContainer.appendChild(lanGrid);
-                            tabContents[lanTabIndex].appendChild(lanChartsContainer);
+                            tabContents[0].appendChild(lanChartsContainer);
                         }
                     }
                 }
