@@ -365,14 +365,20 @@ return view.extend({
         };
     },
 
-    // Create a table to display QoS statistics
+    // Create a table to display QoS statistics with uniform, responsive font styling
     createStatsTable: function(title, headers, rows) {
-        var table = E('table', { 'class': 'table cbi-section-table' });
+        var table = E('table', { 
+            'class': 'table cbi-section-table',
+            'style': 'width: 100%; border-collapse: collapse; font-size: 13px;'
+        });
         
         // Add table headers
         var headerRow = E('tr', { 'class': 'tr table-titles' });
         headers.forEach(function(header) {
-            headerRow.appendChild(E('th', { 'class': 'th' }, header));
+            headerRow.appendChild(E('th', { 
+                'class': 'th',
+                'style': 'font-size: 13px; font-weight: 600; padding: 10px 10px; white-space: nowrap; text-align: left;'
+            }, header));
         });
         table.appendChild(headerRow);
         
@@ -381,7 +387,10 @@ return view.extend({
             rows.forEach(function(row) {
                 var tableRow = E('tr', { 'class': 'tr' });
                 row.forEach(function(cell) {
-                    tableRow.appendChild(E('td', { 'class': 'td' }, cell));
+                    tableRow.appendChild(E('td', { 
+                        'class': 'td',
+                        'style': 'font-size: 13px; padding: 9px 10px; white-space: nowrap; text-align: left; vertical-align: middle;'
+                    }, cell));
                 });
                 table.appendChild(tableRow);
             });
@@ -390,13 +399,16 @@ return view.extend({
             emptyRow.appendChild(E('td', { 
                 'class': 'td', 
                 'colspan': headers.length, 
-                'style': 'text-align: center;' 
+                'style': 'text-align: center; font-size: 13px; padding: 15px;' 
             }, _('No data available')));
             table.appendChild(emptyRow);
         }
         
-        return E('div', { 'class': 'stats-table-container', 'style': 'margin-bottom: 10px;' }, [
-            E('h3', { 'style': 'margin-bottom: 1.5em;' }, title),
+        return E('div', { 
+            'class': 'stats-table-container', 
+            'style': 'margin-bottom: 25px; overflow-x: auto; -webkit-overflow-scrolling: touch;' 
+        }, [
+            E('h3', { 'style': 'margin: 10px 0 12px 0; font-size: 15px; font-weight: 600;' }, title),
             table
         ]);
     },
@@ -2068,24 +2080,24 @@ return view.extend({
                         }
                     }
 
-                    // 1. Egress (Upload) Tab Content: Unified CAKE Egress Table + Single Full-Width Unified Chart
+                    // 1. Egress (Upload) Tab Content: Single Full-Width Unified Chart (TOP) + Unified Table (BOTTOM)
                     if (tabContents[0]) {
-                        if (egressTable) tabContents[0].appendChild(egressTable);
                         if (cakeResults.egressChart) {
                             tabContents[0].appendChild(cakeResults.egressChart);
                         } else if (egressCharts.length > 0) {
                             tabContents[0].appendChild(egressCharts[0]);
                         }
+                        if (egressTable) tabContents[0].appendChild(egressTable);
                     }
                     
-                    // 2. Ingress (Download) Tab Content: Unified CAKE Ingress Table + Single Full-Width Unified Chart
+                    // 2. Ingress (Download) Tab Content: Single Full-Width Unified Chart (TOP) + Unified Table (BOTTOM)
                     if (tabContents[1]) {
-                        if (ingressTable) tabContents[1].appendChild(ingressTable);
                         if (cakeResults.ingressChart) {
                             tabContents[1].appendChild(cakeResults.ingressChart);
                         } else if (ingressCharts.length > 0) {
                             tabContents[1].appendChild(ingressCharts[0]);
                         }
+                        if (ingressTable) tabContents[1].appendChild(ingressTable);
                     }
                 }
             } else if (qosStats.root_qdisc === 'hfsc') {
@@ -2110,17 +2122,7 @@ return view.extend({
                         }
                     }
                     
-                    // Egress table section
-                    if (egressTable && tabContents[0]) {
-                        tabContents[0].appendChild(egressTable);
-                    }
-                    
-                    // Ingress table section
-                    if (ingressTable && tabContents[1]) {
-                        tabContents[1].appendChild(ingressTable);
-                    }
-                    
-                    // Process charts
+                    // Process charts first so they appear at the top
                     if (hfscResults.charts.length > 0) {
                         var egressCharts = [];
                         var ingressCharts = [];
@@ -2137,11 +2139,11 @@ return view.extend({
                             }
                         }
                         
-                        // Create egress charts section
+                        // Create egress charts section (TOP)
                         if (egressCharts.length > 0) {
                             var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var egressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             egressCharts.forEach(function(chart) {
@@ -2152,11 +2154,11 @@ return view.extend({
                             tabContents[0].appendChild(egressChartsContainer);
                         }
                         
-                        // Create ingress charts section
+                        // Create ingress charts section (TOP)
                         if (ingressCharts.length > 0) {
                             var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var ingressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             ingressCharts.forEach(function(chart) {
@@ -2166,6 +2168,16 @@ return view.extend({
                             ingressChartsContainer.appendChild(ingressGrid);
                             tabContents[1].appendChild(ingressChartsContainer);
                         }
+                    }
+                    
+                    // Egress table section (BOTTOM)
+                    if (egressTable && tabContents[0]) {
+                        tabContents[0].appendChild(egressTable);
+                    }
+                    
+                    // Ingress table section (BOTTOM)
+                    if (ingressTable && tabContents[1]) {
+                        tabContents[1].appendChild(ingressTable);
                     }
                 }
             } else if (qosStats.root_qdisc === 'hybrid') {
@@ -2196,22 +2208,7 @@ return view.extend({
                         }
                     }
                     
-                    // Add tables to appropriate tabs
-                    if (egressClassTable) {
-                        tabContents[0].appendChild(egressClassTable);
-                    }
-                    if (cakeEgressTable) {
-                        tabContents[0].appendChild(cakeEgressTable);
-                    }
-                    
-                    if (ingressClassTable) {
-                        tabContents[1].appendChild(ingressClassTable);
-                    }
-                    if (cakeIngressTable) {
-                        tabContents[1].appendChild(cakeIngressTable);
-                    }
-                    
-                    // Process charts
+                    // Process charts first so they appear at the top
                     if (hybridResults.charts.length > 0) {
                         var egressCharts = [];
                         var ingressCharts = [];
@@ -2228,11 +2225,11 @@ return view.extend({
                             }
                         }
                         
-                        // Create egress charts section
+                        // Create egress charts section (TOP)
                         if (egressCharts.length > 0) {
                             var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var egressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             egressCharts.forEach(function(chart) {
@@ -2243,11 +2240,11 @@ return view.extend({
                             tabContents[0].appendChild(egressChartsContainer);
                         }
                         
-                        // Create ingress charts section
+                        // Create ingress charts section (TOP)
                         if (ingressCharts.length > 0) {
                             var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var ingressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             ingressCharts.forEach(function(chart) {
@@ -2257,6 +2254,21 @@ return view.extend({
                             ingressChartsContainer.appendChild(ingressGrid);
                             tabContents[1].appendChild(ingressChartsContainer);
                         }
+                    }
+                    
+                    // Add tables to appropriate tabs (BOTTOM)
+                    if (egressClassTable) {
+                        tabContents[0].appendChild(egressClassTable);
+                    }
+                    if (cakeEgressTable) {
+                        tabContents[0].appendChild(cakeEgressTable);
+                    }
+                    
+                    if (ingressClassTable) {
+                        tabContents[1].appendChild(ingressClassTable);
+                    }
+                    if (cakeIngressTable) {
+                        tabContents[1].appendChild(cakeIngressTable);
                     }
                 }
             } else if (qosStats.root_qdisc === 'htb') {
@@ -2281,15 +2293,7 @@ return view.extend({
                         }
                     }
                     
-                    // Add tables to appropriate tabs
-                    if (egressClassTable) {
-                        tabContents[0].appendChild(egressClassTable);
-                    }
-                    if (ingressClassTable) {
-                        tabContents[1].appendChild(ingressClassTable);
-                    }
-                    
-                    // Process charts
+                    // Process charts first so they appear at the top
                     if (htbResults.charts.length > 0) {
                         var egressCharts = [];
                         var ingressCharts = [];
@@ -2306,11 +2310,11 @@ return view.extend({
                             }
                         }
                         
-                        // Create egress charts section
+                        // Create egress charts section (TOP)
                         if (egressCharts.length > 0) {
                             var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var egressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             egressCharts.forEach(function(chart) {
@@ -2321,11 +2325,11 @@ return view.extend({
                             tabContents[0].appendChild(egressChartsContainer);
                         }
                         
-                        // Create ingress charts section
+                        // Create ingress charts section (TOP)
                         if (ingressCharts.length > 0) {
                             var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var ingressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             ingressCharts.forEach(function(chart) {
@@ -2335,6 +2339,14 @@ return view.extend({
                             ingressChartsContainer.appendChild(ingressGrid);
                             tabContents[1].appendChild(ingressChartsContainer);
                         }
+                    }
+                    
+                    // Add tables to appropriate tabs (BOTTOM)
+                    if (egressClassTable) {
+                        tabContents[0].appendChild(egressClassTable);
+                    }
+                    if (ingressClassTable) {
+                        tabContents[1].appendChild(ingressClassTable);
                     }
                 }
             }
