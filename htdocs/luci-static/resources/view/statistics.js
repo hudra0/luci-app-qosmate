@@ -8,14 +8,7 @@
 'require fs';
 'require uci';
 
-// ==============================================================================
-// QoSmate Next-Gen Real-Time Telemetry & Analytics Dashboard
-// Architecture: Atomic Design (Tokens -> Atoms -> Molecules -> Organisms)
-// Features: Dual-CAKE Pre/Post Proxy Pipeline, Diffserv8 RFC 8290 Engine,
-//           Multi-Stream Throughput History, Bufferbloat Gauges, Live Rules.
-// ==============================================================================
-
-// RPC declarations
+// Define RPC calls
 var callQoSmateStats = rpc.declare({
     object: 'luci.qosmate_stats',
     method: 'getStats',
@@ -34,6 +27,57 @@ var callQoSmateRrdData = rpc.declare({
     expect: { }
 });
 
+// Utility functions
+var formatSize = function(bytes) {
+    var sizes = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
+    if (bytes == 0) return '0 B';
+    var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)));
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+};
+
+var convertToKbps = function(bytesPerSecond) {
+    return (bytesPerSecond * 8 / 1000).toFixed(2) + ' Kbit/s';
+};
+
+// Format time value intelligently (microseconds to ms or s when appropriate)
+var formatTime = function(microseconds) {
+    if (microseconds === undefined || microseconds === null) return '0 µs';
+    
+    if (microseconds === 0) return '0 µs';
+    
+    if (microseconds >= 1000000) {
+        // Convert to seconds for values >= 1s
+        return (microseconds / 1000000).toFixed(2) + ' s';
+    } else if (microseconds >= 1000) {
+        // Convert to milliseconds for values >= 1ms
+        return (microseconds / 1000).toFixed(2) + ' ms';
+    } else {
+        // Keep as microseconds for small values
+        return microseconds + ' µs';
+    }
+};
+
+// Parse size string like "10.5 MiB" to bytes
+var parseSizeToBytes = function(sizeStr) {
+    if (!sizeStr || typeof sizeStr !== 'string') return 0;
+    
+    var numericPart = parseFloat(sizeStr);
+    var unit = sizeStr.split(' ')[1];
+    var multiplier = 1;
+    
+    if (unit === 'KiB') multiplier = 1024;
+    else if (unit === 'MiB') multiplier = 1024 * 1024;
+    else if (unit === 'GiB') multiplier = 1024 * 1024 * 1024;
+    else if (unit === 'TiB') multiplier = 1024 * 1024 * 1024 * 1024;
+    
+    return numericPart * multiplier;
+};
+
+// Convert bytes to Kbits
+var bytesToKbits = function(bytes) {
+    return (bytes * 8 / 1000).toFixed(2);
+};
+
 var callQoSmateRuleCounters = rpc.declare({
     object: 'luci.qosmate_stats',
     method: 'getRuleCounters',
@@ -46,282 +90,252 @@ var callQoSmateAutorateStats = rpc.declare({
     expect: { }
 });
 
-// ==============================================================================
-// Design Tokens & Formatting Helpers
-// ==============================================================================
+// Standard chart colors
+var chartColors = ['#4CAF50', '#2196F3', '#FFC107', '#F44336', '#9C27B0', '#795548', '#FF9800', '#607D8B'];
 
-var formatSize = function(bytes) {
-    if (!bytes || bytes === 0) return '0 B';
-    var sizes = ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB'];
-    var i = parseInt(Math.floor(Math.log(bytes) / Math.log(1024)), 10);
-    if (i < 0) i = 0;
-    if (i >= sizes.length) i = sizes.length - 1;
-    return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + sizes[i];
-};
-
-var formatRate = function(bps) {
-    if (!bps || bps <= 0) return '0.00 Kbit/s';
-    var kbps = bps * 8 / 1000;
-    if (kbps >= 1000) {
-        return (kbps / 1000).toFixed(2) + ' Mbit/s';
-    }
-    return kbps.toFixed(2) + ' Kbit/s';
-};
-
-var formatTime = function(microseconds) {
-    if (microseconds === undefined || microseconds === null || microseconds === 0) return '0 µs';
-    if (microseconds >= 1000000) {
-        return (microseconds / 1000000).toFixed(2) + ' s';
-    } else if (microseconds >= 1000) {
-        return (microseconds / 1000).toFixed(2) + ' ms';
-    }
-    return microseconds + ' µs';
-};
-
-// RFC 8290 CAKE Diffserv8 Specifications (Linux Kernel sch_cake.c alignment)
-var DIFFSERV8_META = [
-    { id: 0, name: 'Background / Scavenger', dscp: 'LE', priority: 'Tin 0 (Lowest)', color: '#64748b', icon: '⏳', desc: 'Low Effort background traffic, scavenger downloads' },
-    { id: 1, name: 'High Throughput Bulk', dscp: 'CS1 / AF11-AF13', priority: 'Tin 1', color: '#475569', icon: '📦', desc: 'Bulk P2P BitTorrent, large sustained file downloads (>750MB)' },
-    { id: 2, name: 'Best Effort', dscp: 'CS0 / Default', priority: 'Tin 2 (Standard)', color: '#16a34a', icon: '🌐', desc: 'Standard unclassified internet traffic, general HTTPS browsing' },
-    { id: 3, name: 'Streaming & Video', dscp: 'AF31-AF33 / AF41-AF43 / CS3', priority: 'Tin 3', color: '#ea580c', icon: '📺', desc: 'RTMP live streams, video call media STUN, TCP upgrade bursts' },
-    { id: 4, name: 'Low-Latency Homelab', dscp: 'AF21-AF23', priority: 'Tin 4', color: '#0d9488', icon: '☁️', desc: 'Cloudflare Argo Tunnel (:7844), homelab web hosting (:8000, :8088)' },
-    { id: 5, name: 'Interactive Shell', dscp: 'CS2', priority: 'Tin 5', color: '#2563eb', icon: '💻', desc: 'SSH remote management (:22), interactive shell sessions' },
-    { id: 6, name: 'Realtime Gaming & Voice', dscp: 'CS4 / CS5 / EF / VA', priority: 'Tin 6 (High)', color: '#dc2626', icon: '🎮', desc: 'PC & LAN Gaming UDP (!80/443), Discord voice, WebRTC, SIP, CS2, Warzone' },
-    { id: 7, name: 'Network Control', dscp: 'CS6 / CS7', priority: 'Tin 7 (Highest)', color: '#7c3aed', icon: '👑', desc: 'DNS (:53), DoH/DoT (:853), NTP (:123), ICMP ping, routing control' }
-];
-
-var DSCP_COLOR_MAP = {
-    'cs7': '#7c3aed', 'cs6': '#7c3aed',
-    'cs5': '#dc2626', 'cs4': '#e11d48',
-    'ef': '#2563eb', 'va': '#0284c7',
-    'af21': '#0d9488', 'af22': '#0f766e',
-    'af41': '#ea580c', 'af42': '#c2410c',
-    'cs2': '#3b82f6', 'cs3': '#f59e0b',
-    'cs0': '#16a34a', 'cs1': '#64748b',
-    'lephb': '#94a3b8'
-};
-
-var getDscpBadgeColor = function(dscpClass) {
-    if (!dscpClass) return '#64748b';
-    var lower = dscpClass.toLowerCase().trim();
-    return DSCP_COLOR_MAP[lower] || '#3b82f6';
-};
-
-// ==============================================================================
-// Real-Time Canvas Multi-Stream Throughput Chart (Organism)
-// ==============================================================================
-
-var LiveTrafficChart = {
-    draw: function(canvas, history) {
-        if (!canvas || !canvas.getContext) return;
+// Lightweight Canvas time-series chart renderer
+var TimeSeriesChart = {
+    draw: function(canvas, config) {
         var ctx = canvas.getContext('2d');
         var dpr = window.devicePixelRatio || 1;
         var w = canvas.clientWidth;
         var h = canvas.clientHeight;
-        if (w <= 0 || h <= 0) return;
 
         canvas.width = w * dpr;
         canvas.height = h * dpr;
         ctx.scale(dpr, dpr);
         ctx.clearRect(0, 0, w, h);
 
-        var pad = { top: 18, right: 20, bottom: 25, left: 75 };
+        // Detect text color from page theme (works for light and dark themes)
+        var textColor = window.getComputedStyle(canvas.parentNode || canvas).color || '#ccc';
+
+        var pad = { top: 20, right: 15, bottom: 32, left: 58 };
+
+        // Determine data ranges
+        var xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
+        (config.series || []).forEach(function(s) {
+            (s.data || []).forEach(function(pt) {
+                if (pt[0] < xMin) xMin = pt[0];
+                if (pt[0] > xMax) xMax = pt[0];
+                if (pt[1] < yMin) yMin = pt[1];
+                if (pt[1] > yMax) yMax = pt[1];
+            });
+        });
+        (config.hLines || []).forEach(function(hl) {
+            if (hl.value < yMin) yMin = hl.value;
+            if (hl.value > yMax) yMax = hl.value;
+        });
+
+        if (!isFinite(xMin)) { xMin = 0; xMax = 300; }
+        if (!isFinite(yMin)) { yMin = 0; yMax = 100; }
+        var yr = yMax - yMin || 1;
+        yMin = Math.max(0, yMin - yr * 0.05);
+        yMax = yMax + yr * 0.1;
+        if (xMax - xMin < 1) xMax = xMin + 60;
+
+        // Measure longest Y-axis label to set dynamic left padding
+        ctx.font = '10px sans-serif';
+        var yTicks = this._ticks(yMin, yMax, 5);
+        var maxLabelW = 0;
+        yTicks.forEach(function(v) {
+            var label = config.yFmt ? config.yFmt(v) : String(v);
+            var lw = ctx.measureText(label).width;
+            if (lw > maxLabelW) maxLabelW = lw;
+        });
+        pad.left = Math.max(58, Math.ceil(maxLabelW + 12));
         var cw = w - pad.left - pad.right;
         var ch = h - pad.top - pad.bottom;
-        if (cw <= 0 || ch <= 0) return;
+        if (cw < 50 || ch < 50) return;
 
-        if (!history || history.length < 2) {
-            ctx.fillStyle = '#94a3b8';
-            ctx.font = '12px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(_('Accumulating real-time telemetry stream...'), w / 2, h / 2);
-            return;
-        }
+        var xS = function(v) { return pad.left + (v - xMin) / (xMax - xMin) * cw; };
+        var yS = function(v) { return pad.top + ch - (v - yMin) / (yMax - yMin) * ch; };
 
-        // Find maximum rate for auto-scaling
-        var maxRate = 0;
-        history.forEach(function(s) {
-            var m = Math.max(s.egressBps || 0, s.ingressBps || 0, s.lanBps || 0, s.cfBps || 0);
-            if (m > maxRate) maxRate = m;
-        });
-        if (maxRate <= 0) maxRate = 125000; // default 1 Mbps baseline
-        maxRate = maxRate * 1.15; // 15% headroom
+        // Grid and labels
+        ctx.fillStyle = textColor;
+        ctx.font = '10px sans-serif';
 
-        var n = history.length;
-        var xS = function(idx) { return pad.left + (idx / (n - 1)) * cw; };
-        var yS = function(val) { return pad.top + ch - (Math.min(val, maxRate) / maxRate) * ch; };
-
-        // Grid lines & Y-axis labels
-        ctx.strokeStyle = '#e2e8f0';
-        ctx.lineWidth = 0.5;
-        ctx.font = '10px -apple-system, sans-serif';
-        ctx.fillStyle = '#64748b';
+        // Y axis
         ctx.textAlign = 'right';
-
-        var ySteps = 4;
-        for (var step = 0; step <= ySteps; step++) {
-            var val = (maxRate / ySteps) * step;
-            var y = yS(val);
-            ctx.beginPath();
-            ctx.moveTo(pad.left, y);
-            ctx.lineTo(pad.left + cw, y);
-            ctx.stroke();
-            ctx.fillText(formatRate(val), pad.left - 6, y + 3);
-        }
-
-        // Time markers on X-axis
-        ctx.textAlign = 'center';
-        var tLabels = [
-            { idx: 0, text: '-' + Math.round(n * 2) + 's' },
-            { idx: Math.floor(n / 2), text: '-' + Math.round(n) + 's' },
-            { idx: n - 1, text: 'now' }
-        ];
-        tLabels.forEach(function(lbl) {
-            var x = xS(lbl.idx);
-            ctx.fillText(lbl.text, x, pad.top + ch + 15);
+        yTicks.forEach(function(v) {
+            var y = yS(v);
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y); ctx.stroke();
+            ctx.fillText(config.yFmt ? config.yFmt(v) : String(v), pad.left - 5, y + 3);
         });
 
-        // Clip area for graph
+        // X axis (relative time with time-aware ticks)
+        ctx.textAlign = 'center';
+        this._timeTicks(xMin, xMax, 6).forEach(function(v) {
+            var x = xS(v);
+            ctx.strokeStyle = '#e0e0e0';
+            ctx.lineWidth = 0.5;
+            ctx.beginPath(); ctx.moveTo(x, pad.top); ctx.lineTo(x, pad.top + ch); ctx.stroke();
+            var ago = Math.round(xMax - v);
+            var label;
+            if (ago <= 0) label = 'now';
+            else if (ago < 120) label = '-' + ago + 's';
+            else if (ago < 5400) label = '-' + Math.round(ago / 60) + 'min';
+            else if (ago < 172800) { var h = ago / 3600; label = '-' + (h % 1 === 0 ? h.toFixed(0) : h.toFixed(1)) + 'h'; }
+            else { var d = ago / 86400; label = '-' + (d % 1 === 0 ? d.toFixed(0) : d.toFixed(1)) + 'd'; }
+            ctx.fillText(label, x, pad.top + ch + 15);
+        });
+
+        // Chart border
+        ctx.strokeStyle = '#ccc'; ctx.lineWidth = 1;
+        ctx.strokeRect(pad.left, pad.top, cw, ch);
+
+        // Clip to chart area
         ctx.save();
-        ctx.beginPath();
-        ctx.rect(pad.left, pad.top, cw, ch);
-        ctx.clip();
+        ctx.beginPath(); ctx.rect(pad.left, pad.top, cw, ch); ctx.clip();
 
-        // Helper to draw smooth series
-        var drawSeries = function(accessor, strokeColor, fillColor) {
+        // Horizontal reference lines
+        (config.hLines || []).forEach(function(hl) {
+            ctx.strokeStyle = hl.color || '#999';
+            ctx.lineWidth = hl.width || 1;
+            if (hl.dashed) ctx.setLineDash([5, 3]);
             ctx.beginPath();
-            ctx.moveTo(xS(0), yS(accessor(history[0])));
-            for (var i = 1; i < n; i++) {
-                ctx.lineTo(xS(i), yS(accessor(history[i])));
-            }
-            if (fillColor) {
-                ctx.lineTo(xS(n - 1), yS(0));
-                ctx.lineTo(xS(0), yS(0));
-                ctx.closePath();
-                ctx.fillStyle = fillColor;
-                ctx.fill();
-            }
-            ctx.beginPath();
-            ctx.moveTo(xS(0), yS(accessor(history[0])));
-            for (var j = 1; j < n; j++) {
-                ctx.lineTo(xS(j), yS(accessor(history[j])));
-            }
-            ctx.strokeStyle = strokeColor;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-        };
+            var y = yS(hl.value);
+            ctx.moveTo(pad.left, y); ctx.lineTo(pad.left + cw, y);
+            ctx.stroke(); ctx.setLineDash([]);
+        });
 
-        // Draw Ingress (Download)
-        drawSeries(function(d) { return d.ingressBps || 0; }, '#16a34a', 'rgba(22, 163, 74, 0.08)');
-        // Draw Pre-Proxy LAN (br-lan Ingress)
-        drawSeries(function(d) { return d.lanBps || 0; }, '#0d9488', 'rgba(13, 148, 136, 0.06)');
-        // Draw Egress (Upload)
-        drawSeries(function(d) { return d.egressBps || 0; }, '#2563eb', 'rgba(37, 99, 235, 0.08)');
-        // Draw Cloudflare & Homelab Web
-        drawSeries(function(d) { return d.cfBps || 0; }, '#7c3aed', 'rgba(124, 58, 237, 0.12)');
+        // Data series
+        (config.series || []).forEach(function(s) {
+            if (!s.data || s.data.length < 2) return;
+            ctx.strokeStyle = s.color || '#2196F3';
+            ctx.lineWidth = s.width || 2;
+            if (s.dashed) ctx.setLineDash([5, 3]);
+
+            if (s.fill) {
+                ctx.fillStyle = s.fill;
+                ctx.beginPath();
+                ctx.moveTo(xS(s.data[0][0]), yS(yMin));
+                s.data.forEach(function(pt) { ctx.lineTo(xS(pt[0]), yS(pt[1])); });
+                ctx.lineTo(xS(s.data[s.data.length - 1][0]), yS(yMin));
+                ctx.closePath(); ctx.fill();
+            }
+
+            ctx.beginPath();
+            ctx.moveTo(xS(s.data[0][0]), yS(s.data[0][1]));
+            for (var i = 1; i < s.data.length; i++) ctx.lineTo(xS(s.data[i][0]), yS(s.data[i][1]));
+            ctx.stroke(); ctx.setLineDash([]);
+        });
 
         ctx.restore();
 
-        // Border
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(pad.left, pad.top, cw, ch);
+        // Legend is rendered as DOM elements outside the canvas (see updateAutorateUI)
+    },
+
+    _ticks: function(min, max, count) {
+        var range = max - min;
+        if (range <= 0) return [min];
+        var rough = range / count;
+        var mag = Math.pow(10, Math.floor(Math.log10(rough)));
+        var n = rough / mag;
+        var step = n <= 1.5 ? mag : n <= 3.5 ? 2 * mag : n <= 7.5 ? 5 * mag : 10 * mag;
+        var ticks = [];
+        for (var v = Math.ceil(min / step) * step; v <= max; v += step)
+            ticks.push(Math.round(v * 1000) / 1000);
+        return ticks;
+    },
+
+    // Time-aware tick generation: picks clean second/minute/hour/day intervals
+    _timeTicks: function(min, max, count) {
+        var span = max - min;
+        if (span <= 0) return [max];
+        var steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800,
+                     3600, 7200, 10800, 21600, 43200, 86400, 172800, 432000, 604800];
+        var ideal = span / count;
+        var step = steps[steps.length - 1];
+        for (var i = 0; i < steps.length; i++) {
+            if (steps[i] >= ideal) { step = steps[i]; break; }
+        }
+        var ticks = [];
+        var maxAgo = Math.floor(span / step) * step;
+        for (var ago = maxAgo; ago >= 0; ago -= step)
+            ticks.push(max - ago);
+        return ticks;
     }
 };
 
-// ==============================================================================
-// Diffserv8 Traffic Distribution Donut Chart (Organism)
-// ==============================================================================
+// Statistics tables and charts are rendered with translated headings, so they
+// have to be grouped into the Egress/Ingress tabs by comparing against the
+// translations as well. A plain English keyword match such as
+// title.includes('Egress') dropped every table and chart in a non-English UI.
+var qosmateEgressHeadings = [
+    'CAKE Egress Statistics',
+    'CAKE Statistics for Default Class (Egress)',
+    'Egress Bytes Sent by Class',
+    'Egress Bytes Sent by Tin',
+    'Egress Dropped Packets by Class',
+    'Egress Dropped Packets by Tin',
+    'Egress Packets Sent by Class',
+    'Egress Packets Sent by Tin',
+    'HFSC Egress Class Statistics',
+    'HTB Egress Class Statistics',
+    'Hybrid Egress Class Statistics'
+];
 
-var TinDonutChart = {
-    draw: function(canvas, tins, totalBytes) {
-        if (!canvas || !canvas.getContext) return;
-        var ctx = canvas.getContext('2d');
-        var dpr = window.devicePixelRatio || 1;
-        var w = canvas.clientWidth;
-        var h = canvas.clientHeight;
-        if (w <= 0 || h <= 0) return;
+var qosmateIngressHeadings = [
+    'CAKE Ingress Statistics',
+    'CAKE Statistics for Default Class (Ingress)',
+    'HFSC Ingress Class Statistics',
+    'HTB Ingress Class Statistics',
+    'Hybrid Ingress Class Statistics',
+    'Ingress Bytes Sent by Class',
+    'Ingress Bytes Sent by Tin',
+    'Ingress Dropped Packets by Class',
+    'Ingress Dropped Packets by Tin',
+    'Ingress Packets Sent by Class',
+    'Ingress Packets Sent by Tin'
+];
 
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, w, h);
-
-        var cx = w / 2;
-        var cy = h / 2;
-        var radius = Math.min(cx, cy) - 10;
-        var innerRadius = radius * 0.62;
-
-        if (!totalBytes || totalBytes <= 0 || !tins || tins.length === 0) {
-            ctx.fillStyle = '#cbd5e1';
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
-            ctx.arc(cx, cy, innerRadius, 2 * Math.PI, 0, true);
-            ctx.fill();
-
-            ctx.fillStyle = '#64748b';
-            ctx.font = '11px -apple-system, sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText(_('Zero bytes'), cx, cy + 4);
-            return;
-        }
-
-        var startAngle = -Math.PI / 2;
-        for (var i = 7; i >= 0; i--) {
-            var sent = (tins[i] && tins[i].sent_bytes) ? tins[i].sent_bytes : 0;
-            if (sent <= 0) continue;
-            var sliceAngle = (sent / totalBytes) * (2 * Math.PI);
-            var endAngle = startAngle + sliceAngle;
-            var color = DIFFSERV8_META[i].color;
-
-            ctx.beginPath();
-            ctx.arc(cx, cy, radius, startAngle, endAngle);
-            ctx.arc(cx, cy, innerRadius, endAngle, startAngle, true);
-            ctx.closePath();
-            ctx.fillStyle = color;
-            ctx.fill();
-
-            startAngle = endAngle;
-        }
-
-        // Center cutout info
-        ctx.fillStyle = 'var(--color-text-primary, #0f172a)';
-        ctx.font = 'bold 12px -apple-system, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(formatSize(totalBytes), cx, cy - 2);
-        ctx.font = '10px -apple-system, sans-serif';
-        ctx.fillStyle = '#64748b';
-        ctx.fillText(_('Total Volume'), cx, cy + 12);
-    }
+var isLanHeading = function(heading) {
+    if (!heading) return false;
+    return heading.indexOf('Pre-Proxy') !== -1 || heading.indexOf('LAN') !== -1 || heading.indexOf('br-lan') !== -1;
 };
 
-// ==============================================================================
-// LuCI Modern View Architecture
-// ==============================================================================
+var isEgressHeading = function(heading) {
+    if (!heading) return false;
+    if (isLanHeading(heading)) return false;
+    for (var i = 0; i < headingPatterns.length; i++) {
+        if (heading.indexOf(headingPatterns[i]) !== -1 && (heading.indexOf('Egress') !== -1 || heading.indexOf('Upload') !== -1)) return true;
+    }
+    return heading.indexOf('Egress') !== -1 || heading.indexOf('Upload') !== -1;
+};
 
+var isIngressHeading = function(heading) {
+    if (!heading) return false;
+    if (isLanHeading(heading)) return false;
+    for (var i = 0; i < headingPatterns.length; i++) {
+        if (heading.indexOf(headingPatterns[i]) !== -1 && (heading.indexOf('Ingress') !== -1 || heading.indexOf('Download') !== -1)) return true;
+    }
+    return heading.indexOf('Ingress') !== -1 || heading.indexOf('Download') !== -1;
+};
+
+
+// Main view
 return view.extend({
-    pollInterval: 2,
+    pollInterval: 5,
+    lastData: null,
+    charts: {},
     pollHandler: null,
-    activeTab: 'overview',
-    searchQuery: '',
-    lastPollTime: 0,
-    lastStats: null,
-    prevRulePackets: {},
-    trafficHistory: [],
-    matrixView: 'egress',
-    maxHistoryPoints: 30,
+    activeTabIndex: 0, // Track the active tab
+    autorateData: null, // Persistent autorate state across polls
+    autorateTimeRange: '60m', // Active time range for autorate charts
 
     load: function() {
         return Promise.all([
             callQoSmateStats(),
             callQoSmateHistoricalStats(),
             callQoSmateRrdData(),
-            callQoSmateRuleCounters(),
             callQoSmateAutorateStats(),
             uci.load('qosmate')
         ]);
     },
 
+    // Helper function to create a poll handler with consistent behavior
     createPollFunction: function() {
         var view = this;
         return function() {
@@ -329,664 +343,2217 @@ return view.extend({
                 callQoSmateStats(),
                 callQoSmateHistoricalStats(),
                 callQoSmateRrdData(),
-                callQoSmateRuleCounters(),
                 callQoSmateAutorateStats()
             ]).then(function(data) {
                 view.updateContent(data);
                 return data;
-            }).catch(function(err) {
-                console.error('QoSmate poll error:', err);
+            }).catch(function(error) {
+                // Simple error handling to show feedback when API calls fail
+                console.error('Error fetching QoS statistics:', error);
+                
+                // Find the content container
+                var contentContainer = document.querySelector('.qosmate-content-container');
+                if (contentContainer) {
+                    // Show error message
+                    dom.content(contentContainer, E('div', { 'class': 'cbi-section' }, [
+                        E('p', { 'class': 'alert-message warning' }, [
+                            _('Error loading QoS statistics. Please check if the QoSmate service is running.')
+                        ])
+                    ]));
+                }
+                
                 return null;
             });
         };
     },
 
-    render: function(data) {
-        var view = this;
-        var qosStats = data[0] || {};
-
-        view.lastStats = qosStats;
-        view.lastPollTime = Date.now();
-
-        var mainContainer = E('div', { 'class': 'cbi-map qosmate-dashboard-root', 'style': 'max-width: 100%; overflow-x: hidden;' });
-
-        // Scoped Atomic Design System Tokens
-        var styleEl = E('style', {}, [
-            '.qosmate-dashboard-root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--color-text-primary, #0f172a); }',
-            '.qm-grid { display: grid; gap: 1rem; margin-bottom: 1.25rem; }',
-            '.qm-grid-4 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }',
-            '.qm-grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }',
-            '.qm-grid-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }',
-            '.qm-card { background: var(--background-color-card, #ffffff); border: 1px solid var(--border-color-medium, #e2e8f0); border-radius: 12px; padding: 1.15rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: transform 0.15s ease, box-shadow 0.15s ease; }',
-            '.qm-card:hover { box-shadow: 0 4px 10px rgba(0,0,0,0.06); }',
-            '.qm-card-title { font-size: 0.82rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #64748b); margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between; }',
-            '.qm-card-value { font-size: 1.55rem; font-weight: 700; color: var(--color-text-primary, #0f172a); line-height: 1.2; margin-bottom: 0.25rem; }',
-            '.qm-card-sub { font-size: 0.8rem; color: var(--color-text-muted, #64748b); }',
-            '.qm-pill { display: inline-flex; align-items: center; font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.04em; }',
-            '.qm-tin-card { border-left: 5px solid #cbd5e1; position: relative; overflow: hidden; }',
-            '.qm-bar-bg { background: rgba(0,0,0,0.06); border-radius: 4px; height: 8px; overflow: hidden; width: 100%; margin: 0.4rem 0; }',
-            '.qm-bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s ease; }',
-            '.qm-tab-nav { display: flex; flex-wrap: wrap; gap: 0.4rem; border-bottom: 2px solid var(--border-color-medium, #e2e8f0); margin-bottom: 1.25rem; padding-bottom: 0.25rem; }',
-            '.qm-tab-btn { background: none; border: none; padding: 0.55rem 1rem; font-size: 0.88rem; font-weight: 600; color: var(--color-text-muted, #64748b); cursor: pointer; border-radius: 6px; transition: all 0.15s ease; display: inline-flex; align-items: center; gap: 0.4rem; }',
-            '.qm-tab-btn:hover { background: rgba(0,0,0,0.04); color: var(--color-text-primary, #0f172a); }',
-            '.qm-tab-btn.active { background: #3b82f6; color: #ffffff; }',
-            '.qm-table-wrap { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border-color-medium, #e2e8f0); border-radius: 8px; }',
-            '.qm-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; text-align: left; }',
-            '.qm-table th { background: rgba(0,0,0,0.02); font-weight: 600; padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-color-medium, #e2e8f0); color: var(--color-text-muted, #64748b); white-space: nowrap; }',
-            '.qm-table td { padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-color-medium, #e2e8f0); vertical-align: middle; }',
-            '.qm-table tr:last-child td { border-bottom: none; }',
-            '.qm-table tr:hover td { background: rgba(0,0,0,0.015); }',
-            '.qm-search { padding: 0.45rem 0.85rem; border: 1px solid var(--border-color-medium, #cbd5e1); border-radius: 6px; font-size: 0.84rem; width: 280px; outline: none; }',
-            '.qm-search:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }',
-            '.qm-pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,0.7); animation: qm-pulse-anim 1.5s infinite; }',
-            '@keyframes qm-pulse-anim { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.7); } 70% { box-shadow: 0 0 0 6px rgba(34,197,94,0); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }',
-            '.qm-pipeline-strip { display: flex; align-items: center; justify-content: space-between; overflow-x: auto; gap: 0.5rem; padding: 0.85rem 1rem; background: var(--background-color-card, #ffffff); border: 1px solid var(--border-color-medium, #e2e8f0); border-radius: 10px; margin-bottom: 1.25rem; font-size: 0.78rem; -webkit-overflow-scrolling: touch; }',
-            '.qm-pipeline-node { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 130px; }',
-            '.qm-pipeline-arrow { font-size: 1.1rem; color: #94a3b8; }',
-            '@media (max-width: 640px) { .qm-card-value { font-size: 1.3rem; } .qm-tab-btn { padding: 0.4rem 0.65rem; font-size: 0.8rem; } .qm-search { width: 100%; } }'
-        ].join('\n'));
-        mainContainer.appendChild(styleEl);
-
-        // Header Top Bar: Status + Telemetry Controls
-        var topBar = E('div', { 'style': 'display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.8rem; margin-bottom: 1.25rem; background: var(--background-color-card, #ffffff); border: 1px solid var(--border-color-medium, #e2e8f0); border-radius: 12px; padding: 0.85rem 1.2rem;' }, [
-            E('div', { 'style': 'display: flex; align-items: center; gap: 0.75rem;' }, [
-                E('div', { 'style': 'width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #1d4ed8); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; color: #fff; box-shadow: 0 2px 6px rgba(37,99,235,0.3);' }, '⚡'),
-                E('div', {}, [
-                    E('div', { 'style': 'font-size: 1.15rem; font-weight: 700; line-height: 1.2;' }, _('QoSmate Live Telemetry & Traffic Matrix')),
-                    E('div', { 'style': 'font-size: 0.78rem; color: #64748b; display: flex; align-items: center; gap: 0.4rem;' }, [
-                        E('span', { 'class': 'qm-pulse' }),
-                        E('span', {}, _('Engine: CAKE Diffserv8 RFC 8290') + ' | ' + _('Dual-CAKE Pre-Proxy') + ' | ' + _('Interface: ') + (qosStats.wan_interface || 'wan'))
-                    ])
-                ])
-            ]),
-            E('div', { 'style': 'display: flex; align-items: center; gap: 0.6rem;' }, [
-                E('span', { 'style': 'font-size: 0.82rem; font-weight: 600; color: #64748b;' }, _('Poll:')),
-                E('select', {
-                    'class': 'cbi-input-select',
-                    'style': 'padding: 0.35rem 0.6rem; border-radius: 6px; font-size: 0.82rem;',
-                    'change': function(ev) {
-                        var interval = parseInt(ev.target.value, 10);
-                        if (view.pollHandler) poll.remove(view.pollHandler);
-                        view.pollInterval = interval;
-                        view.pollHandler = view.createPollFunction();
-                        poll.add(view.pollHandler, view.pollInterval);
-                    }
-                }, [2, 5, 10, 15, 30].map(function(s) {
-                    var opt = E('option', { 'value': s }, s + ' ' + _('sec'));
-                    if (s === view.pollInterval) opt.selected = true;
-                    return opt;
-                }))
-            ])
-        ]);
-        mainContainer.appendChild(topBar);
-
-        // Content Area Container (dynamically updated on polling)
-        var contentArea = E('div', { 'class': 'qosmate-dynamic-content' });
-        mainContainer.appendChild(contentArea);
-
-        // Setup polling
-        if (!view.pollHandler) {
-            view.pollHandler = view.createPollFunction();
-            poll.add(view.pollHandler, view.pollInterval);
-        }
-
-        // Render initial content
-        view.updateContent(data);
-
-        return mainContainer;
-    },
-
-    updateContent: function(data) {
-        var view = this;
-        var qosStats = data[0] || {};
-        var ruleStats = data[3] ? (data[3].rule_counters || []) : [];
-        var autorateStats = data[4];
-
-        var contentArea = document.querySelector('.qosmate-dynamic-content');
-        if (!contentArea) return;
-        dom.content(contentArea, '');
-
-        var now = Date.now();
-        var dt = view.lastPollTime > 0 ? ((now - view.lastPollTime) / 1000) : view.pollInterval;
-        if (dt <= 0) dt = 2;
-        view.lastPollTime = now;
-
-        var prevStats = view.lastStats;
-        view.lastStats = qosStats;
-
-        // Extract root qdisc instances
-        var egress = qosStats.cake_egress || {};
-        var ingress = qosStats.cake_ingress || {};
-        var lan = qosStats.cake_lan || {};
-
-        var prevEgress = prevStats ? (prevStats.cake_egress || {}) : {};
-        var prevIngress = prevStats ? (prevStats.cake_ingress || {}) : {};
-        var prevLan = prevStats ? (prevStats.cake_lan || {}) : {};
-
-        // Compute real-time throughput rates
-        var egressBps = (prevEgress.bytes && egress.bytes && egress.bytes >= prevEgress.bytes) ? ((egress.bytes - prevEgress.bytes) / dt) : 0;
-        var ingressBps = (prevIngress.bytes && ingress.bytes && ingress.bytes >= prevIngress.bytes) ? ((ingress.bytes - prevIngress.bytes) / dt) : 0;
-        var lanBps = (prevLan.bytes && lan.bytes && lan.bytes >= prevLan.bytes) ? ((lan.bytes - prevLan.bytes) / dt) : 0;
-
-        // Compute Cloudflare / Homelab Web throughput
-        var cfRule = ruleStats.find(function(r) { return r.rule_name === 'Cloudflare Tunnel UDP' || r.rule_name === 'Cloudflare Tunnel TCP'; });
-        var cfBytes = cfRule ? cfRule.total_bytes : 0;
-        var webOut = ruleStats.find(function(r) { return r.rule_name === 'Homelab Web 8000 Out'; });
-        var webBytes = webOut ? webOut.total_bytes : 0;
-        var combinedCfWebBytes = cfBytes + webBytes;
-
-        var prevCfBytes = view.prevCfBytes || combinedCfWebBytes;
-        var cfBps = (combinedCfWebBytes >= prevCfBytes) ? ((combinedCfWebBytes - prevCfBytes) / dt) : 0;
-        view.prevCfBytes = combinedCfWebBytes;
-
-        // Append to circular history buffer
-        view.trafficHistory.push({
-            time: now,
-            egressBps: egressBps,
-            ingressBps: ingressBps,
-            lanBps: lanBps,
-            cfBps: cfBps
+    // Create a table to display QoS statistics
+    createStatsTable: function(title, headers, rows) {
+        var table = E('table', { 'class': 'table cbi-section-table' });
+        
+        // Add table headers
+        var headerRow = E('tr', { 'class': 'tr table-titles' });
+        headers.forEach(function(header) {
+            headerRow.appendChild(E('th', { 'class': 'th' }, header));
         });
-        if (view.trafficHistory.length > view.maxHistoryPoints) {
-            view.trafficHistory.shift();
+        table.appendChild(headerRow);
+        
+        // Add table rows
+        if (rows && rows.length > 0) {
+            rows.forEach(function(row) {
+                var tableRow = E('tr', { 'class': 'tr' });
+                row.forEach(function(cell) {
+                    tableRow.appendChild(E('td', { 'class': 'td' }, cell));
+                });
+                table.appendChild(tableRow);
+            });
+        } else {
+            var emptyRow = E('tr', { 'class': 'tr' });
+            emptyRow.appendChild(E('td', { 
+                'class': 'td', 
+                'colspan': headers.length, 
+                'style': 'text-align: center;' 
+            }, _('No data available')));
+            table.appendChild(emptyRow);
         }
-
-        // 1. Packet Lifecycle Pipeline Strip (Pre-Xray vs Post-Xray Visual Trace)
-        var pipelineStrip = E('div', { 'class': 'qm-pipeline-strip' }, [
-            E('div', { 'class': 'qm-pipeline-node' }, [
-                E('div', { 'style': 'font-size: 1.1rem;' }, '💻'),
-                E('b', {}, _('1. LAN Ingress')),
-                E('span', { 'style': 'color: #64748b;' }, '10.10.10.0/24')
-            ]),
-            E('span', { 'class': 'qm-pipeline-arrow' }, '➔'),
-            E('div', { 'class': 'qm-pipeline-node' }, [
-                E('div', { 'style': 'font-size: 1.1rem;' }, '⚡'),
-                E('b', { 'style': 'color: #0d9488;' }, _('2. Dual-CAKE (ifb)')),
-                E('span', { 'class': 'qm-pill', 'style': 'background: rgba(13,148,136,0.12); color: #0d9488; margin-top: 2px;' }, _('Pre-Xray Shaper'))
-            ]),
-            E('span', { 'class': 'qm-pipeline-arrow' }, '➔'),
-            E('div', { 'class': 'qm-pipeline-node' }, [
-                E('div', { 'style': 'font-size: 1.1rem;' }, '🏷️'),
-                E('b', { 'style': 'color: #2563eb;' }, _('3. DSCP Tagging')),
-                E('span', { 'style': 'color: #64748b;' }, 'Netfilter -160')
-            ]),
-            E('span', { 'class': 'qm-pipeline-arrow' }, '➔'),
-            E('div', { 'class': 'qm-pipeline-node' }, [
-                E('div', { 'style': 'font-size: 1.1rem;' }, '🔀'),
-                E('b', { 'style': 'color: #7c3aed;' }, _('4. Passwall2 / Xray')),
-                E('span', { 'style': 'color: #64748b;' }, 'Direct vs GID 9912')
-            ]),
-            E('span', { 'class': 'qm-pipeline-arrow' }, '➔'),
-            E('div', { 'class': 'qm-pipeline-node' }, [
-                E('div', { 'style': 'font-size: 1.1rem;' }, '🛡️'),
-                E('b', { 'style': 'color: #16a34a;' }, _('5. WAN CAKE Egress')),
-                E('span', { 'class': 'qm-pill', 'style': 'background: rgba(22,163,74,0.12); color: #16a34a; margin-top: 2px;' }, _('Diffserv8 (wan)'))
-            ]),
-            E('span', { 'class': 'qm-pipeline-arrow' }, '➔'),
-            E('div', { 'class': 'qm-pipeline-node' }, [
-                E('div', { 'style': 'font-size: 1.1rem;' }, '🌐'),
-                E('b', {}, _('6. Physical ISP')),
-                E('span', { 'style': 'color: #64748b;' }, (qosStats.wan_interface || 'wan'))
-            ])
+        
+        return E('div', { 'class': 'stats-table-container', 'style': 'margin-bottom: 10px;' }, [
+            E('h3', { 'style': 'margin-bottom: 1.5em;' }, title),
+            table
         ]);
-        contentArea.appendChild(pipelineStrip);
+    },
 
-        // 2. Hero Metric Cards Grid (Atoms -> Molecules -> Organism)
-        var heroGrid = E('div', { 'class': 'qm-grid qm-grid-4' }, [
-            // Card 1: Egress (WAN)
-            E('div', { 'class': 'qm-card' }, [
-                E('div', { 'class': 'qm-card-title' }, [
-                    E('span', {}, _('WAN Egress (Upload)')),
-                    E('span', { 'class': 'qm-pill', 'style': 'background: rgba(37,99,235,0.12); color: #2563eb;' }, (egress.options && egress.options.bandwidth ? (egress.options.bandwidth / 1000000).toFixed(0) + 'M' : '120M'))
-                ]),
-                E('div', { 'class': 'qm-card-value', 'style': 'color: #2563eb;' }, formatRate(egressBps)),
-                E('div', { 'class': 'qm-card-sub' }, [
-                    E('span', {}, _('Total: ') + formatSize(egress.bytes || 0) + ' (' + (egress.packets || 0).toLocaleString() + ' pkts)'),
-                    E('br'),
-                    E('span', { 'style': (egress.drops > 0 ? 'color: #e11d48; font-weight: 600;' : '') }, _('Drops: ') + (egress.drops || 0) + ' | ' + _('Overlimits: ') + (egress.overlimits || 0).toLocaleString())
-                ])
-            ]),
-
-            // Card 2: Ingress (WAN)
-            E('div', { 'class': 'qm-card' }, [
-                E('div', { 'class': 'qm-card-title' }, [
-                    E('span', {}, _('WAN Ingress (Download)')),
-                    E('span', { 'class': 'qm-pill', 'style': 'background: rgba(22,163,74,0.12); color: #16a34a;' }, (ingress.options && ingress.options.bandwidth ? (ingress.options.bandwidth / 1000000).toFixed(0) + 'M' : '600M'))
-                ]),
-                E('div', { 'class': 'qm-card-value', 'style': 'color: #16a34a;' }, formatRate(ingressBps)),
-                E('div', { 'class': 'qm-card-sub' }, [
-                    E('span', {}, _('Total: ') + formatSize(ingress.bytes || 0) + ' (' + (ingress.packets || 0).toLocaleString() + ' pkts)'),
-                    E('br'),
-                    E('span', {}, _('Host Isolation: dual-dsthost') + ' | ' + _('Drops: ') + (ingress.drops || 0))
-                ])
-            ]),
-
-            // Card 3: Pre-Proxy LAN Ingress (Dual-CAKE on ifb-br-lan)
-            E('div', { 'class': 'qm-card' }, [
-                E('div', { 'class': 'qm-card-title' }, [
-                    E('span', {}, _('Pre-Proxy LAN (br-lan)')),
-                    E('span', { 'class': 'qm-pill', 'style': 'background: rgba(13,148,136,0.12); color: #0d9488;' }, 'Pre-Xray')
-                ]),
-                E('div', { 'class': 'qm-card-value', 'style': 'color: #0d9488;' }, formatRate(lanBps)),
-                E('div', { 'class': 'qm-card-sub' }, [
-                    E('span', {}, _('Total: ') + formatSize(lan.bytes || 0) + ' (' + (lan.packets || 0).toLocaleString() + ' pkts)'),
-                    E('br'),
-                    E('span', {}, _('Active Queues: ') + (lan.active_queues || 0) + ' | ' + _('Memory: ') + formatSize(lan.memory_used || 0))
-                ])
-            ]),
-
-            // Card 4: Cloudflare Argo Tunnel & Homelab Web
-            E('div', { 'class': 'qm-card' }, [
-                E('div', { 'class': 'qm-card-title' }, [
-                    E('span', {}, _('Cloudflare Argo & Web')),
-                    E('span', { 'class': 'qm-pill', 'style': 'background: rgba(124,58,237,0.12); color: #7c3aed;' }, 'Tin 4 AF21')
-                ]),
-                E('div', { 'class': 'qm-card-value', 'style': 'color: #7c3aed;' }, formatRate(cfBps)),
-                E('div', { 'class': 'qm-card-sub' }, [
-                    E('span', {}, _('Volume: ') + formatSize(combinedCfWebBytes) + ' (' + (cfRule ? cfRule.total_packets : 0).toLocaleString() + ' pkts)'),
-                    E('br'),
-                    E('span', {}, _('Homelab Origin: ') + formatSize(webBytes) + ' (:8000)')
-                ])
-            ])
-        ]);
-        contentArea.appendChild(heroGrid);
-
-        // 3. Creative Real-Time Visual Charts Panel (Overview Tab)
-        var visualChartSection = E('div', { 'class': 'qm-grid qm-grid-3' }, [
-            // Left Chart: Live Multi-Stream Throughput History (Area Chart)
-            E('div', { 'class': 'qm-card', 'style': 'grid-column: span 2;' }, [
-                E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;' }, [
-                    E('div', { 'style': 'font-weight: 700; font-size: 0.92rem; display: flex; align-items: center; gap: 0.4rem;' }, [
-                        E('span', {}, '📈'),
-                        E('span', {}, _('Live Throughput Telemetry Stream (Last 60s)'))
-                    ]),
-                    E('div', { 'style': 'display: flex; align-items: center; gap: 0.75rem; font-size: 0.75rem; font-weight: 600;' }, [
-                        E('span', { 'style': 'color: #2563eb; display: inline-flex; align-items: center; gap: 3px;' }, [ E('span', { 'style': 'width: 8px; height: 8px; border-radius: 50%; background: #2563eb; display: inline-block;' }), _('WAN Up') ]),
-                        E('span', { 'style': 'color: #16a34a; display: inline-flex; align-items: center; gap: 3px;' }, [ E('span', { 'style': 'width: 8px; height: 8px; border-radius: 50%; background: #16a34a; display: inline-block;' }), _('WAN Down') ]),
-                        E('span', { 'style': 'color: #0d9488; display: inline-flex; align-items: center; gap: 3px;' }, [ E('span', { 'style': 'width: 8px; height: 8px; border-radius: 50%; background: #0d9488; display: inline-block;' }), _('Pre-Xray LAN') ]),
-                        E('span', { 'style': 'color: #7c3aed; display: inline-flex; align-items: center; gap: 3px;' }, [ E('span', { 'style': 'width: 8px; height: 8px; border-radius: 50%; background: #7c3aed; display: inline-block;' }), _('Argo/Web') ])
-                    ])
-                ]),
-                E('canvas', { 'class': 'qm-live-traffic-canvas', 'style': 'width: 100%; height: 180px; display: block;' })
-            ]),
-
-            // Right Chart: Diffserv8 Traffic Distribution Donut
-            E('div', { 'class': 'qm-card' }, [
-                E('div', { 'style': 'font-weight: 700; font-size: 0.92rem; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem;' }, [
-                    E('span', {}, '🍩'),
-                    E('span', {}, _('CAKE Tin Distribution'))
-                ]),
-                E('canvas', { 'class': 'qm-tin-donut-canvas', 'style': 'width: 100%; height: 180px; display: block;' })
-            ])
-        ]);
-        contentArea.appendChild(visualChartSection);
-
-        // Schedule Canvas Renders
-        window.requestAnimationFrame(function() {
-            var trafficCanvas = contentArea.querySelector('.qm-live-traffic-canvas');
-            if (trafficCanvas) {
-                LiveTrafficChart.draw(trafficCanvas, view.trafficHistory);
+    // Create an elegant, responsive chart with zero label overlap and adaptive sqrt scaling
+    createChart: function(id, title, data, labels, colors) {
+        var container = E('div', { 
+            'class': 'chart-container', 
+            'style': 'background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column;' 
+        });
+        
+        var chartTitle = E('h3', { 'style': 'margin: 0 0 14px 0; font-size: 14px; font-weight: 600;' }, title);
+        container.appendChild(chartTitle);
+        
+        var chartData = E('div', { 
+            'class': 'chart-data', 
+            'style': 'display: flex; height: 160px; margin-top: 5px; align-items: flex-end; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.12);' 
+        });
+        
+        if (data && data.length > 0) {
+            var maxValue = Math.max.apply(null, data);
+            
+            for (var i = 0; i < data.length; i++) {
+                var value = data[i];
+                var barHeight = 2;
+                if (value > 0 && maxValue > 0) {
+                    var ratio = value / maxValue;
+                    // Adaptive Sqrt Scaling: zooms in on small packets (Gaming, DNS, Voice)
+                    // so fine details are visible even when a background download is 1000x larger!
+                    barHeight = Math.max(6, Math.round(Math.sqrt(ratio) * 125));
+                }
+                var color = colors ? colors[i % colors.length] : '#0088cc';
+                var fullLabel = labels ? labels[i] : ('Tin ' + i);
+                var shortTag = 'T' + i;
+                
+                var formattedVal = '0';
+                if (typeof value === 'number') {
+                    if (value > 1000000) formattedVal = (value / 1000000).toFixed(1) + 'M';
+                    else if (value > 1000) formattedVal = (value / 1000).toFixed(1) + 'K';
+                    else formattedVal = String(value);
+                }
+                
+                var barContainer = E('div', { 
+                    'style': 'flex: 1; text-align: center; padding: 0 2px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; cursor: pointer;',
+                    'title': fullLabel + ' : ' + formattedVal
+                });
+                
+                var valueLabel = E('div', { 
+                    'style': 'font-size: 10px; margin-bottom: 4px; font-weight: 600; opacity: ' + (value > 0 ? '1' : '0.35') + ';' 
+                }, formattedVal);
+                
+                var bar = E('div', { 
+                    'style': 'background-color: ' + color + '; width: 70%; max-width: 28px; min-width: 12px; height: ' + (barHeight > 0 ? barHeight : 2) + 'px; border-radius: 4px 4px 0 0; opacity: ' + (value > 0 ? '0.95' : '0.25') + '; transition: height 0.3s ease;' 
+                });
+                
+                var tagBadge = E('div', { 
+                    'style': 'font-size: 11px; font-weight: bold; margin-top: 6px; color: ' + color + ';' 
+                }, shortTag);
+                
+                barContainer.appendChild(valueLabel);
+                barContainer.appendChild(bar);
+                barContainer.appendChild(tagBadge);
+                chartData.appendChild(barContainer);
             }
-
-            var donutCanvas = contentArea.querySelector('.qm-tin-donut-canvas');
-            if (donutCanvas) {
-                var activeInstance = view.matrixView === 'ingress' ? ingress : (view.matrixView === 'lan' ? lan : egress);
-                var tins = activeInstance.tins || [];
-                var totalBytes = tins.reduce(function(acc, t) { return acc + (t.sent_bytes || 0); }, 0);
-                TinDonutChart.draw(donutCanvas, tins, totalBytes);
+            
+            container.appendChild(chartData);
+            
+            // Clean, wrapped legend grid underneath bars - 100% immune to overlap
+            var legendContainer = E('div', { 
+                'style': 'display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; margin-top: 12px; font-size: 11px;' 
+            });
+            
+            for (var j = 0; j < data.length; j++) {
+                var c = colors ? colors[j % colors.length] : '#0088cc';
+                var lbl = labels ? labels[j] : ('Tin ' + j);
+                var cleanName = lbl.replace(/^Tin\s*\d+\s*:\s*/i, '');
+                
+                var legendItem = E('div', { 
+                    'style': 'display: inline-flex; align-items: center; white-space: nowrap;' 
+                }, [
+                    E('span', { 
+                        'style': 'display: inline-block; width: 10px; height: 10px; border-radius: 3px; background-color: ' + c + '; margin-right: 5px; flex-shrink: 0;' 
+                    }),
+                    E('span', { 'style': 'opacity: 0.88;' }, 'T' + j + ': ' + cleanName)
+                ]);
+                legendContainer.appendChild(legendItem);
             }
+            
+            container.appendChild(legendContainer);
+        } else {
+            chartData.appendChild(E('div', { 'style': 'width: 100%; text-align: center; padding-top: 60px;' }, 
+                                 _('No data available')));
+            container.appendChild(chartData);
+        }
+        
+        return container;
+    },
+
+    // Process CAKE statistics
+    processCakeStats: function(data) {
+        if (!data || (!data.cake_egress && !data.cake_ingress)) {
+            return { tables: [], charts: [] };
+        }
+        
+        var result = { tables: [], charts: [] };
+        var self = this;
+        var diffservColors = ['#4CAF50', '#2196F3', '#FFC107', '#F44336', '#9C27B0', '#795548', '#FF9800', '#607D8B'];
+        
+        // Helper function to get tin name based on diffserv mode
+        function getTinName(tinIndex, diffservMode) {
+            if (diffservMode === 'diffserv3') {
+                return ['Bulk (Tin 0)', 'Best Effort (Tin 1)', 'Voice (Tin 2)'][tinIndex] || ('Tin ' + tinIndex);
+            } else if (diffservMode === 'diffserv4') {
+                return ['Bulk (Tin 0)', 'Best Effort (Tin 1)', 'Video (Tin 2)', 'Voice (Tin 3)'][tinIndex] || ('Tin ' + tinIndex);
+            } else if (diffservMode === 'diffserv8') {
+                return [
+                    _('Tin 0: Low Priority (LE / Background)'),
+                    _('Tin 1: High Throughput (AF1x / TOS2 / CS1)'),
+                    _('Tin 2: Best Effort (CS0 / General Traffic)'),
+                    _('Tin 3: Video Streaming (AF3x / AF4x / CS3)'),
+                    _('Tin 4: Low-Latency Transactions (AF2x / TOS4)'),
+                    _('Tin 5: Interactive Shell (CS2 / TOS1 / SSH)'),
+                    _('Tin 6: Minimum Latency (EF / VA / CS4 / CS5)'),
+                    _('Tin 7: Network Control (CS6 / CS7)')
+                ][tinIndex] || ('Tin ' + tinIndex);
+            } else {
+                return 'Tin ' + tinIndex;
+            }
+        }
+        
+        // Process CAKE egress statistics
+        if (data.cake_egress) {
+            var egressRows = [];
+            var diffservMode = data.cake_egress.options ? data.cake_egress.options.diffserv : 'diffserv4';
+            
+            if (data.cake_egress.tins) {
+                data.cake_egress.tins.forEach(function(tin, index) {
+                    egressRows.push([
+                        'Tin ' + index,
+                        // Convert threshold_rate from Byte/s to Kbit/s
+                        bytesToKbits(tin.threshold_rate) + ' Kbit/s',
+                        formatTime(tin.target_us),
+                        formatTime(tin.interval_us),
+                        // Add delay metrics (µs)
+                        formatTime(tin.peak_delay_us),
+                        formatTime(tin.avg_delay_us),
+                        formatTime(tin.base_delay_us),
+                        formatSize(tin.sent_bytes),
+                        tin.sent_packets,
+                        tin.drops,
+                        tin.ecn_mark
+                    ]);
+                });
+            }
+            
+            // Create table for CAKE egress tins
+            if (egressRows.length > 0) {
+                result.tables.push(self.createStatsTable(
+                    _('CAKE Egress Statistics'),
+                    [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
+                    egressRows
+                ));
+                
+                // Create charts for CAKE egress stats
+                var tinLabels = egressRows.map(function(row, index) {
+                    return getTinName(index, diffservMode);
+                });
+                
+                var sentBytes = egressRows.map(function(row) { 
+                    return parseSizeToBytes(row[7]);
+                });
+                
+                var sentPackets = egressRows.map(function(row) { return parseInt(row[8]); });
+                var droppedPackets = egressRows.map(function(row) { return parseInt(row[9]); });
+                
+                var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
+                result.charts.push(self.createChart(
+                    'cake-egress-bytes',
+                    _('Egress Bytes Sent by Tin'),
+                    sentBytes,
+                    tinLabels,
+                    cakeColors
+                ));
+                
+                result.charts.push(self.createChart(
+                    'cake-egress-packets',
+                    _('Egress Packets Sent by Tin'),
+                    sentPackets,
+                    tinLabels,
+                    cakeColors
+                ));
+                
+                result.charts.push(self.createChart(
+                    'cake-egress-dropped',
+                    _('Egress Dropped Packets by Tin'),
+                    droppedPackets,
+                    tinLabels,
+                    cakeColors
+                ));
+            }
+        }
+        
+        // Process CAKE ingress statistics
+        if (data.cake_ingress) {
+            var ingressRows = [];
+            var diffservMode = data.cake_ingress.options ? data.cake_ingress.options.diffserv : 'diffserv4';
+            
+            if (data.cake_ingress.tins) {
+                data.cake_ingress.tins.forEach(function(tin, index) {
+                    ingressRows.push([
+                        'Tin ' + index,
+                        // Convert threshold_rate from Byte/s to Kbit/s
+                        bytesToKbits(tin.threshold_rate) + ' Kbit/s',
+                        formatTime(tin.target_us),
+                        formatTime(tin.interval_us),
+                        // Add delay metrics (µs)
+                        formatTime(tin.peak_delay_us),
+                        formatTime(tin.avg_delay_us),
+                        formatTime(tin.base_delay_us),
+                        formatSize(tin.sent_bytes),
+                        tin.sent_packets,
+                        tin.drops,
+                        tin.ecn_mark
+                    ]);
+                });
+            }
+            
+            // Create table for CAKE ingress tins
+            if (ingressRows.length > 0) {
+                result.tables.push(self.createStatsTable(
+                    _('CAKE Ingress Statistics'),
+                    [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
+                    ingressRows
+                ));
+                
+                // Create charts for CAKE ingress stats
+                var tinLabels = ingressRows.map(function(row, index) {
+                    return getTinName(index, diffservMode);
+                });
+                
+                var sentBytes = ingressRows.map(function(row) { 
+                    return parseSizeToBytes(row[7]);
+                });
+                
+                var sentPackets = ingressRows.map(function(row) { return parseInt(row[8]); });
+                var droppedPackets = ingressRows.map(function(row) { return parseInt(row[9]); });
+                
+                var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
+                result.charts.push(self.createChart(
+                    'cake-ingress-bytes',
+                    _('Ingress Bytes Sent by Tin'),
+                    sentBytes,
+                    tinLabels,
+                    cakeColors
+                ));
+                
+                result.charts.push(self.createChart(
+                    'cake-ingress-packets',
+                    _('Ingress Packets Sent by Tin'),
+                    sentPackets,
+                    tinLabels,
+                    cakeColors
+                ));
+                
+                result.charts.push(self.createChart(
+                    'cake-ingress-dropped',
+                    _('Ingress Dropped Packets by Tin'),
+                    droppedPackets,
+                    tinLabels,
+                    cakeColors
+                ));
+            }
+        }
+        
+        // Process CAKE pre-proxy LAN ingress statistics (Dual-CAKE)
+        if (data.cake_lan && data.cake_lan.tins) {
+            var lanRows = [];
+            var diffservMode = data.cake_lan.options ? data.cake_lan.options.diffserv : 'diffserv8';
+            
+            data.cake_lan.tins.forEach(function(tin, index) {
+                lanRows.push([
+                    'Tin ' + index,
+                    bytesToKbits(tin.threshold_rate) + ' Kbit/s',
+                    formatTime(tin.target_us),
+                    formatTime(tin.interval_us),
+                    formatTime(tin.peak_delay_us),
+                    formatTime(tin.avg_delay_us),
+                    formatTime(tin.base_delay_us),
+                    formatSize(tin.sent_bytes),
+                    tin.sent_packets,
+                    tin.drops,
+                    tin.ecn_mark
+                ]);
+            });
+            
+            if (lanRows.length > 0) {
+                result.tables.push(self.createStatsTable(
+                    _('CAKE Pre-Proxy (LAN Ingress) Statistics'),
+                    [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
+                    lanRows
+                ));
+                
+                var tinLabels = lanRows.map(function(row, index) {
+                    return getTinName(index, diffservMode);
+                });
+                var sentBytes = lanRows.map(function(row) { 
+                    return parseSizeToBytes(row[7]);
+                });
+                var sentPackets = lanRows.map(function(row) { return parseInt(row[8]); });
+                var droppedPackets = lanRows.map(function(row) { return parseInt(row[9]); });
+                var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
+
+                result.charts.push(self.createChart(
+                    'cake-lan-bytes',
+                    _('Pre-Proxy Bytes Queued by Tin'),
+                    sentBytes,
+                    tinLabels,
+                    cakeColors
+                ));
+                result.charts.push(self.createChart(
+                    'cake-lan-packets',
+                    _('Pre-Proxy Packets Queued by Tin'),
+                    sentPackets,
+                    tinLabels,
+                    cakeColors
+                ));
+                result.charts.push(self.createChart(
+                    'cake-lan-dropped',
+                    _('Pre-Proxy Dropped Packets by Tin'),
+                    droppedPackets,
+                    tinLabels,
+                    cakeColors
+                ));
+            }
+        }
+        
+        return result;
+    },
+
+    // Process HFSC statistics
+    processHfscStats: function(data) {
+        if (!data || (!data.egress_leaf_qdiscs && !data.ingress_leaf_qdiscs)) {
+            return { tables: [], charts: [] };
+        }
+        
+        var result = { tables: [], charts: [] };
+        var self = this;
+        
+        // Process egress leaf qdiscs
+        if (data.egress_leaf_qdiscs && data.egress_leaf_qdiscs.length > 0) {
+            var egressRows = [];
+            
+            // Process all qdiscs first and collect data
+            var classData = {};
+            
+            data.egress_leaf_qdiscs.forEach(function(qdisc) {
+                if (!qdisc.parent) return;
+                
+                var classId = qdisc.parent;
+                var classDesc = '';
+                var sortOrder = 999; // Default high value for unknown classes
+                
+                // Determine class description based on ID and skip those that don't match
+                if (classId.includes('1:11')) {
+                    classDesc = _('High Priority (Realtime)');
+                    sortOrder = 5;
+                }
+                else if (classId.includes('1:12')) {
+                    classDesc = _('Fast Non-Realtime');
+                    sortOrder = 4;
+                }
+                else if (classId.includes('1:13')) {
+                    classDesc = _('Normal');
+                    sortOrder = 3;
+                }
+                else if (classId.includes('1:14')) {
+                    classDesc = _('Low Priority');
+                    sortOrder = 2;
+                }
+                else if (classId.includes('1:15')) {
+                    classDesc = _('Bulk');
+                    sortOrder = 1;
+                }
+                else return; // Skip this qdisc if it doesn't match any of the expected classes
+                
+                classData[classId] = {
+                    classId: classId,
+                    classDesc: classDesc,
+                    sortOrder: sortOrder,
+                    bytes: qdisc.bytes || 0,
+                    packets: qdisc.packets || 0,
+                    drops: qdisc.drops || 0,
+                    overlimits: qdisc.overlimits || 0
+                };
+            });
+            
+            // Convert to array and sort based on sortOrder
+            var sortedClassData = Object.values(classData).sort(function(a, b) {
+                return a.sortOrder - b.sortOrder;
+            });
+            
+            // Create rows from sorted data
+            sortedClassData.forEach(function(item) {
+                egressRows.push([
+                    item.classId,
+                    item.classDesc,
+                    formatSize(item.bytes),
+                    item.packets,
+                    item.drops,
+                    item.overlimits
+                ]);
+            });
+            
+            // Create table for HFSC egress classes
+            result.tables.push(self.createStatsTable(
+                _('HFSC Egress Class Statistics'),
+                [_('Class ID'), _('Description'), _('Bytes'), _('Packets'), _('Drops'), _('Overlimits')],
+                egressRows
+            ));
+            
+            // Create charts for HFSC egress classes
+            var classLabels = sortedClassData.map(function(item) { return item.classDesc; });
+            var sentBytes = sortedClassData.map(function(item) { 
+                return parseSizeToBytes(formatSize(item.bytes));
+            });
+            var sentPackets = sortedClassData.map(function(item) { return item.packets; });
+            var droppedPackets = sortedClassData.map(function(item) { return item.drops; });
+            
+            result.charts.push(self.createChart(
+                'hfsc-egress-bytes',
+                _('Egress Bytes Sent by Class'),
+                sentBytes,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'hfsc-egress-packets',
+                _('Egress Packets Sent by Class'),
+                sentPackets,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'hfsc-egress-dropped',
+                _('Egress Dropped Packets by Class'),
+                droppedPackets,
+                classLabels,
+                chartColors
+            ));
+        }
+        
+        // Process ingress leaf qdiscs
+        if (data.ingress_leaf_qdiscs && data.ingress_leaf_qdiscs.length > 0) {
+            var ingressRows = [];
+            
+            // Process all qdiscs first and collect data
+            var classData = {};
+            
+            data.ingress_leaf_qdiscs.forEach(function(qdisc) {
+                if (!qdisc.parent) return;
+                
+                var classId = qdisc.parent;
+                var classDesc = '';
+                var sortOrder = 999; // Default high value for unknown classes
+                
+                // Determine class description based on ID and skip those that don't match
+                if (classId.includes('1:11')) {
+                    classDesc = _('High Priority (Realtime)');
+                    sortOrder = 5;
+                }
+                else if (classId.includes('1:12')) {
+                    classDesc = _('Fast Non-Realtime');
+                    sortOrder = 4;
+                }
+                else if (classId.includes('1:13')) {
+                    classDesc = _('Normal');
+                    sortOrder = 3;
+                }
+                else if (classId.includes('1:14')) {
+                    classDesc = _('Low Priority');
+                    sortOrder = 2;
+                }
+                else if (classId.includes('1:15')) {
+                    classDesc = _('Bulk');
+                    sortOrder = 1;
+                }
+                else return; // Skip this qdisc if it doesn't match any of the expected classes
+                
+                classData[classId] = {
+                    classId: classId,
+                    classDesc: classDesc,
+                    sortOrder: sortOrder,
+                    bytes: qdisc.bytes || 0,
+                    packets: qdisc.packets || 0,
+                    drops: qdisc.drops || 0,
+                    overlimits: qdisc.overlimits || 0
+                };
+            });
+            
+            // Convert to array and sort based on sortOrder
+            var sortedClassData = Object.values(classData).sort(function(a, b) {
+                return a.sortOrder - b.sortOrder;
+            });
+            
+            // Create rows from sorted data
+            sortedClassData.forEach(function(item) {
+                ingressRows.push([
+                    item.classId,
+                    item.classDesc,
+                    formatSize(item.bytes),
+                    item.packets,
+                    item.drops,
+                    item.overlimits
+                ]);
+            });
+            
+            // Create table for HFSC ingress classes
+            result.tables.push(self.createStatsTable(
+                _('HFSC Ingress Class Statistics'),
+                [_('Class ID'), _('Description'), _('Bytes'), _('Packets'), _('Drops'), _('Overlimits')],
+                ingressRows
+            ));
+            
+            // Create charts for HFSC ingress classes
+            var classLabels = sortedClassData.map(function(item) { return item.classDesc; });
+            var sentBytes = sortedClassData.map(function(item) { 
+                return parseSizeToBytes(formatSize(item.bytes));
+            });
+            var sentPackets = sortedClassData.map(function(item) { return item.packets; });
+            var droppedPackets = sortedClassData.map(function(item) { return item.drops; });
+            
+            result.charts.push(self.createChart(
+                'hfsc-ingress-bytes',
+                _('Ingress Bytes Sent by Class'),
+                sentBytes,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'hfsc-ingress-packets',
+                _('Ingress Packets Sent by Class'),
+                sentPackets,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'hfsc-ingress-dropped',
+                _('Ingress Dropped Packets by Class'),
+                droppedPackets,
+                classLabels,
+                chartColors
+            ));
+        }
+        
+        return result;
+    },
+
+    // Process Hybrid statistics (HFSC + CAKE)
+    processHybridStats: function(data) {
+        if (!data || (!data.egress_leaf_qdiscs && !data.ingress_leaf_qdiscs)) {
+            return { tables: [], charts: [] };
+        }
+        
+        var result = { tables: [], charts: [] };
+        var self = this;
+        
+        // Process egress hybrid statistics
+        if (data.egress_leaf_qdiscs && data.egress_leaf_qdiscs.length > 0) {
+            var egressRows = [];
+            
+            // Process all qdiscs first and collect data (hybrid only has 1:11, 1:13, 1:15)
+            var classData = {};
+            
+            data.egress_leaf_qdiscs.forEach(function(qdisc) {
+                if (!qdisc.parent) return;
+                
+                var classId = qdisc.parent;
+                var classDesc = '';
+                var queueType = '';
+                var sortOrder = 999;
+                
+                // Hybrid class mapping based on setup_hybrid() function
+                if (classId.includes('1:11')) {
+                    classDesc = _('Realtime Gaming');
+                    queueType = data.gameqdisc || 'pfifo';
+                    sortOrder = 3;
+                }
+                else if (classId.includes('1:13')) {
+                    classDesc = _('Default (CAKE)');
+                    queueType = 'cake';
+                    sortOrder = 2;
+                }
+                else if (classId.includes('1:15')) {
+                    classDesc = _('Bulk');
+                    queueType = 'fq_codel';
+                    sortOrder = 1;
+                }
+                else return; // Skip unknown classes
+                
+                classData[classId] = {
+                    classId: classId,
+                    classDesc: classDesc,
+                    queueType: queueType,
+                    sortOrder: sortOrder,
+                    bytes: qdisc.bytes || 0,
+                    packets: qdisc.packets || 0,
+                    drops: qdisc.drops || 0,
+                    overlimits: qdisc.overlimits || 0
+                };
+            });
+            
+            // Convert to array and sort
+            var sortedClassData = Object.values(classData).sort(function(a, b) {
+                return b.sortOrder - a.sortOrder; // Higher priority first
+            });
+            
+            // Create rows from sorted data
+            sortedClassData.forEach(function(item) {
+                egressRows.push([
+                    item.classId,
+                    item.classDesc,
+                    item.queueType,
+                    formatSize(item.bytes),
+                    item.packets,
+                    item.drops,
+                    item.overlimits
+                ]);
+            });
+            
+            // Create table for Hybrid egress classes
+            result.tables.push(self.createStatsTable(
+                _('Hybrid Egress Class Statistics'),
+                [_('Class ID'), _('Description'), _('Queue Type'), _('Bytes'), _('Packets'), _('Drops'), _('Overlimits')],
+                egressRows
+            ));
+            
+            // Create charts
+            var classLabels = sortedClassData.map(function(item) { return item.classDesc; });
+            var sentBytes = sortedClassData.map(function(item) { 
+                return parseSizeToBytes(formatSize(item.bytes));
+            });
+            var sentPackets = sortedClassData.map(function(item) { return item.packets; });
+            var droppedPackets = sortedClassData.map(function(item) { return item.drops; });
+            
+            result.charts.push(self.createChart(
+                'hybrid-egress-bytes',
+                _('Egress Bytes Sent by Class'),
+                sentBytes,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'hybrid-egress-packets',
+                _('Egress Packets Sent by Class'),
+                sentPackets,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'hybrid-egress-dropped',
+                _('Egress Dropped Packets by Class'),
+                droppedPackets,
+                classLabels,
+                chartColors
+            ));
+        }
+        
+        // Process ingress hybrid statistics
+        if (data.ingress_leaf_qdiscs && data.ingress_leaf_qdiscs.length > 0) {
+            var ingressRows = [];
+            
+            var classData = {};
+            
+            data.ingress_leaf_qdiscs.forEach(function(qdisc) {
+                if (!qdisc.parent) return;
+                
+                var classId = qdisc.parent;
+                var classDesc = '';
+                var queueType = '';
+                var sortOrder = 999;
+                
+                // Hybrid class mapping
+                if (classId.includes('1:11')) {
+                    classDesc = _('Realtime Gaming');
+                    queueType = data.gameqdisc || 'pfifo';
+                    sortOrder = 3;
+                }
+                else if (classId.includes('1:13')) {
+                    classDesc = _('Default (CAKE)');
+                    queueType = 'cake';
+                    sortOrder = 2;
+                }
+                else if (classId.includes('1:15')) {
+                    classDesc = _('Bulk');
+                    queueType = 'fq_codel';
+                    sortOrder = 1;
+                }
+                else return;
+                
+                classData[classId] = {
+                    classId: classId,
+                    classDesc: classDesc,
+                    queueType: queueType,
+                    sortOrder: sortOrder,
+                    bytes: qdisc.bytes || 0,
+                    packets: qdisc.packets || 0,
+                    drops: qdisc.drops || 0,
+                    overlimits: qdisc.overlimits || 0
+                };
+            });
+            
+            var sortedClassData = Object.values(classData).sort(function(a, b) {
+                return b.sortOrder - a.sortOrder;
+            });
+            
+            sortedClassData.forEach(function(item) {
+                ingressRows.push([
+                    item.classId,
+                    item.classDesc,
+                    item.queueType,
+                    formatSize(item.bytes),
+                    item.packets,
+                    item.drops,
+                    item.overlimits
+                ]);
+            });
+            
+            result.tables.push(self.createStatsTable(
+                _('Hybrid Ingress Class Statistics'),
+                [_('Class ID'), _('Description'), _('Queue Type'), _('Bytes'), _('Packets'), _('Drops'), _('Overlimits')],
+                ingressRows
+            ));
+            
+            var classLabels = sortedClassData.map(function(item) { return item.classDesc; });
+            var sentBytes = sortedClassData.map(function(item) { 
+                return parseSizeToBytes(formatSize(item.bytes));
+            });
+            var sentPackets = sortedClassData.map(function(item) { return item.packets; });
+            var droppedPackets = sortedClassData.map(function(item) { return item.drops; });
+            
+            result.charts.push(self.createChart(
+                'hybrid-ingress-bytes',
+                _('Ingress Bytes Sent by Class'),
+                sentBytes,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'hybrid-ingress-packets',
+                _('Ingress Packets Sent by Class'),
+                sentPackets,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'hybrid-ingress-dropped',
+                _('Ingress Dropped Packets by Class'),
+                droppedPackets,
+                classLabels,
+                chartColors
+            ));
+        }
+        
+        // Add CAKE details for the 1:13 class if available
+        if (data.hybrid_cake_egress && Object.keys(data.hybrid_cake_egress).length > 0) {
+            var cakeEgressData = data.hybrid_cake_egress;
+            if (cakeEgressData.tins && cakeEgressData.tins.length > 0) {
+                var cakeEgressRows = [];
+                                 cakeEgressData.tins.forEach(function(tin, index) {
+                     cakeEgressRows.push([
+                         'Tin ' + index,
+                         bytesToKbits(tin.threshold_rate) + ' Kbit/s',
+                         formatTime(tin.target_us),
+                         formatTime(tin.interval_us),
+                         formatTime(tin.peak_delay_us),
+                         formatTime(tin.avg_delay_us),
+                         formatTime(tin.base_delay_us),
+                         formatSize(tin.sent_bytes),
+                         tin.sent_packets,
+                         tin.drops,
+                         tin.ecn_mark
+                     ]);
+                 });
+                 
+                 result.tables.push(self.createStatsTable(
+                     _('CAKE Statistics for Default Class (Egress)'),
+                     [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
+                     cakeEgressRows
+                 ));
+            }
+        }
+        
+        if (data.hybrid_cake_ingress && Object.keys(data.hybrid_cake_ingress).length > 0) {
+            var cakeIngressData = data.hybrid_cake_ingress;
+            if (cakeIngressData.tins && cakeIngressData.tins.length > 0) {
+                var cakeIngressRows = [];
+                                 cakeIngressData.tins.forEach(function(tin, index) {
+                     cakeIngressRows.push([
+                         'Tin ' + index,
+                         bytesToKbits(tin.threshold_rate) + ' Kbit/s',
+                         formatTime(tin.target_us),
+                         formatTime(tin.interval_us),
+                         formatTime(tin.peak_delay_us),
+                         formatTime(tin.avg_delay_us),
+                         formatTime(tin.base_delay_us),
+                         formatSize(tin.sent_bytes),
+                         tin.sent_packets,
+                         tin.drops,
+                         tin.ecn_mark
+                     ]);
+                 });
+                 
+                 result.tables.push(self.createStatsTable(
+                     _('CAKE Statistics for Default Class (Ingress)'),
+                     [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
+                     cakeIngressRows
+                 ));
+            }
+        }
+        
+        return result;
+    },
+
+    // Process HTB statistics
+    processHtbStats: function(data) {
+        if (!data || (!data.egress_leaf_qdiscs && !data.ingress_leaf_qdiscs)) {
+            return { tables: [], charts: [] };
+        }
+        
+        var result = { tables: [], charts: [] };
+        var self = this;
+        
+        // Process egress HTB statistics
+        if (data.egress_leaf_qdiscs && data.egress_leaf_qdiscs.length > 0) {
+            var egressRows = [];
+            
+            // Process all qdiscs first and collect data
+            var classData = {};
+            
+            data.egress_leaf_qdiscs.forEach(function(qdisc) {
+                if (!qdisc.parent) return;
+                
+                var classId = qdisc.parent;
+                var classDesc = '';
+                var sortOrder = 999; // Default high value for unknown classes
+                
+                // Determine class description based on ID and skip those that don't match
+                if (classId.includes('1:11')) {
+                    classDesc = _('Priority');
+                    sortOrder = 3;
+                }
+                else if (classId.includes('1:13')) {
+                    classDesc = _('Best Effort');
+                    sortOrder = 2;
+                }
+                else if (classId.includes('1:15')) {
+                    classDesc = _('Background');
+                    sortOrder = 1;
+                }
+                else return; // Skip this qdisc if it doesn't match any of the expected classes
+                
+                classData[classId] = {
+                    classId: classId,
+                    classDesc: classDesc,
+                    sortOrder: sortOrder,
+                    bytes: qdisc.bytes || 0,
+                    packets: qdisc.packets || 0,
+                    drops: qdisc.drops || 0,
+                    overlimits: qdisc.overlimits || 0
+                };
+            });
+            
+            // Convert to array and sort based on sortOrder
+            var sortedClassData = Object.values(classData).sort(function(a, b) {
+                return b.sortOrder - a.sortOrder; // Higher priority first
+            });
+            
+            // Create rows from sorted data
+            sortedClassData.forEach(function(item) {
+                egressRows.push([
+                    item.classId,
+                    item.classDesc,
+                    formatSize(item.bytes),
+                    item.packets,
+                    item.drops,
+                    item.overlimits
+                ]);
+            });
+            
+            // Create table for HTB egress classes
+            result.tables.push(self.createStatsTable(
+                _('HTB Egress Class Statistics'),
+                [_('Class ID'), _('Description'), _('Bytes'), _('Packets'), _('Drops'), _('Overlimits')],
+                egressRows
+            ));
+            
+            // Create charts for HTB egress classes
+            var classLabels = sortedClassData.map(function(item) { return item.classDesc; });
+            var sentBytes = sortedClassData.map(function(item) { 
+                return parseSizeToBytes(formatSize(item.bytes));
+            });
+            var sentPackets = sortedClassData.map(function(item) { return item.packets; });
+            var droppedPackets = sortedClassData.map(function(item) { return item.drops; });
+            
+            result.charts.push(self.createChart(
+                'htb-egress-bytes',
+                _('Egress Bytes Sent by Class'),
+                sentBytes,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'htb-egress-packets',
+                _('Egress Packets Sent by Class'),
+                sentPackets,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'htb-egress-dropped',
+                _('Egress Dropped Packets by Class'),
+                droppedPackets,
+                classLabels,
+                chartColors
+            ));
+        }
+        
+        // Process ingress HTB statistics
+        if (data.ingress_leaf_qdiscs && data.ingress_leaf_qdiscs.length > 0) {
+            var ingressRows = [];
+            
+            var classData = {};
+            
+            data.ingress_leaf_qdiscs.forEach(function(qdisc) {
+                if (!qdisc.parent) return;
+                
+                var classId = qdisc.parent;
+                var classDesc = '';
+                var sortOrder = 999;
+                
+                if (classId.includes('1:11')) {
+                    classDesc = _('Priority');
+                    sortOrder = 3;
+                }
+                else if (classId.includes('1:13')) {
+                    classDesc = _('Best Effort');
+                    sortOrder = 2;
+                }
+                else if (classId.includes('1:15')) {
+                    classDesc = _('Background');
+                    sortOrder = 1;
+                }
+                else return;
+                
+                classData[classId] = {
+                    classId: classId,
+                    classDesc: classDesc,
+                    sortOrder: sortOrder,
+                    bytes: qdisc.bytes || 0,
+                    packets: qdisc.packets || 0,
+                    drops: qdisc.drops || 0,
+                    overlimits: qdisc.overlimits || 0
+                };
+            });
+            
+            var sortedClassData = Object.values(classData).sort(function(a, b) {
+                return b.sortOrder - a.sortOrder;
+            });
+            
+            sortedClassData.forEach(function(item) {
+                ingressRows.push([
+                    item.classId,
+                    item.classDesc,
+                    formatSize(item.bytes),
+                    item.packets,
+                    item.drops,
+                    item.overlimits
+                ]);
+            });
+            
+            result.tables.push(self.createStatsTable(
+                _('HTB Ingress Class Statistics'),
+                [_('Class ID'), _('Description'), _('Bytes'), _('Packets'), _('Drops'), _('Overlimits')],
+                ingressRows
+            ));
+            
+            var classLabels = sortedClassData.map(function(item) { return item.classDesc; });
+            var sentBytes = sortedClassData.map(function(item) { 
+                return parseSizeToBytes(formatSize(item.bytes));
+            });
+            var sentPackets = sortedClassData.map(function(item) { return item.packets; });
+            var droppedPackets = sortedClassData.map(function(item) { return item.drops; });
+            
+            result.charts.push(self.createChart(
+                'htb-ingress-bytes',
+                _('Ingress Bytes Sent by Class'),
+                sentBytes,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'htb-ingress-packets',
+                _('Ingress Packets Sent by Class'),
+                sentPackets,
+                classLabels,
+                chartColors
+            ));
+            
+            result.charts.push(self.createChart(
+                'htb-ingress-dropped',
+                _('Ingress Dropped Packets by Class'),
+                droppedPackets,
+                classLabels,
+                chartColors
+            ));
+        }
+        
+        return result;
+    },
+
+    // Render active QoSmate classification rules table
+    renderRulesTable: function(countersData) {
+        var counters = (countersData && countersData.rule_counters) ? countersData.rule_counters : [];
+        var rows = [];
+        
+        var getTinBadge = function(name) {
+            var n = name.toLowerCase();
+            if (n.indexOf('dns') !== -1 || n.indexOf('ntp') !== -1 || n.indexOf('icmp') !== -1) {
+                return E('span', { 'class': 'badge', 'style': 'background:#7c3aed; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 7: Control (CS6)');
+            } else if (n.indexOf('gaming') !== -1 || n.indexOf('game') !== -1 || n.indexOf('cs2') !== -1 || n.indexOf('warzone') !== -1 || n.indexOf('fortnite') !== -1 || n.indexOf('rivals') !== -1 || n.indexOf('valorant') !== -1) {
+                return E('span', { 'class': 'badge', 'style': 'background:#dc2626; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 6: Gaming (CS5)');
+            } else if (n.indexOf('voice') !== -1 || n.indexOf('webrtc') !== -1 || n.indexOf('sip') !== -1) {
+                return E('span', { 'class': 'badge', 'style': 'background:#e11d48; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 6: Voice (EF/VA)');
+            } else if (n.indexOf('ssh') !== -1 || n.indexOf('shell') !== -1) {
+                return E('span', { 'class': 'badge', 'style': 'background:#2563eb; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 5: Interactive (CS2)');
+            } else if (n.indexOf('cloudflare') !== -1 || n.indexOf('tunnel') !== -1 || n.indexOf('homelab') !== -1 || n.indexOf('uptime') !== -1 || n.indexOf('luci') !== -1) {
+                return E('span', { 'class': 'badge', 'style': 'background:#0d9488; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 4: Low-Latency (AF21)');
+            } else if (n.indexOf('video') !== -1 || n.indexOf('stun') !== -1 || n.indexOf('rtmp') !== -1) {
+                return E('span', { 'class': 'badge', 'style': 'background:#ea580c; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 3: Video (AF41)');
+            } else if (n.indexOf('torrent') !== -1 || n.indexOf('p2p') !== -1 || n.indexOf('bulk') !== -1) {
+                return E('span', { 'class': 'badge', 'style': 'background:#475569; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 1: Bulk (CS1)');
+            }
+            return E('span', { 'class': 'badge', 'style': 'background:#16a34a; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 2: Best Effort (CS0)');
+        };
+
+        counters.forEach(function(r) {
+            rows.push([
+                r.rule_name,
+                getTinBadge(r.rule_name),
+                formatSize(r.total_bytes || 0),
+                (r.total_packets || 0).toLocaleString(),
+                (r.ipv4_packets || 0).toLocaleString(),
+                (r.ipv6_packets || 0).toLocaleString()
+            ]);
         });
 
-        // 4. Tab Navigation
-        var tabItems = [
-            { key: 'overview', label: _('Diffserv8 RFC 8290 Tins Matrix'), icon: '📊' },
-            { key: 'rules', label: _('Active QoS Rules (' + ruleStats.length + ')'), icon: '🎯' },
-            { key: 'tc', label: _('Engine Diagnostics & TC Hierarchy'), icon: '⚙️' }
-        ];
-
-        if (autorateStats && autorateStats.autorate_enabled) {
-            tabItems.push({ key: 'autorate', label: _('Autorate Analytics'), icon: '📈' });
-        }
-
-        var tabNav = E('div', { 'class': 'qm-tab-nav' }, tabItems.map(function(t) {
-            var btn = E('button', {
-                'class': 'qm-tab-btn' + (view.activeTab === t.key ? ' active' : ''),
-                'click': function() {
-                    view.activeTab = t.key;
-                    view.updateContent([qosStats, null, null, { rule_counters: ruleStats }, autorateStats]);
-                }
-            }, [
-                E('span', {}, t.icon),
-                E('span', {}, t.label)
-            ]);
-            return btn;
-        }));
-        contentArea.appendChild(tabNav);
-
-        // 5. Render Tab Contents
-        if (view.activeTab === 'overview') {
-            view.renderTinsMatrix(contentArea, egress, ingress, lan);
-        } else if (view.activeTab === 'rules') {
-            view.renderRulesTable(contentArea, ruleStats, dt);
-        } else if (view.activeTab === 'tc') {
-            view.renderTcDetails(contentArea, qosStats);
-        } else if (view.activeTab === 'autorate') {
-            view.renderAutorateSection(contentArea, autorateStats);
-        }
-    },
-
-    // --------------------------------------------------------------------------
-    // Render Diffserv8 Tin Hierarchy Matrix (Molecules -> Organism)
-    // --------------------------------------------------------------------------
-    renderTinsMatrix: function(container, egress, ingress, lan) {
-        var view = this;
-
-        // Sub-selector: Egress WAN vs Ingress WAN vs Pre-Proxy LAN
-        var activeMatrix = view.matrixView || 'egress';
-        var activeInstance = activeMatrix === 'ingress' ? ingress : (activeMatrix === 'lan' ? lan : egress);
-        var activeName = activeMatrix === 'ingress' ? _('WAN Ingress Path (Downloads from Internet)') : (activeMatrix === 'lan' ? _('Pre-Proxy LAN Ingress Path (Dual-CAKE Uploads)') : _('WAN Egress Path (Physical Post-NAT/Proxy Uploads)'));
-
-        var switchBar = E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem;' }, [
-            E('div', { 'style': 'font-size: 0.95rem; font-weight: 700;' }, activeName),
-            E('div', { 'style': 'display: inline-flex; background: rgba(0,0,0,0.05); padding: 2px; border-radius: 8px;' }, [
-                E('button', {
-                    'class': 'qm-tab-btn' + (activeMatrix === 'egress' ? ' active' : ''),
-                    'style': 'padding: 0.35rem 0.8rem; font-size: 0.8rem;',
-                    'click': function() { view.matrixView = 'egress'; view.updateContent([view.lastStats, null, null, null, null]); }
-                }, _('WAN Egress')),
-                E('button', {
-                    'class': 'qm-tab-btn' + (activeMatrix === 'lan' ? ' active' : ''),
-                    'style': 'padding: 0.35rem 0.8rem; font-size: 0.8rem;',
-                    'click': function() { view.matrixView = 'lan'; view.updateContent([view.lastStats, null, null, null, null]); }
-                }, _('Pre-Proxy LAN')),
-                E('button', {
-                    'class': 'qm-tab-btn' + (activeMatrix === 'ingress' ? ' active' : ''),
-                    'style': 'padding: 0.35rem 0.8rem; font-size: 0.8rem;',
-                    'click': function() { view.matrixView = 'ingress'; view.updateContent([view.lastStats, null, null, null, null]); }
-                }, _('WAN Ingress'))
+        var container = E('div', { 'class': 'cbi-section' });
+        container.appendChild(E('h3', {}, _('QoSmate Live Classification Rules Activity')));
+        container.appendChild(E('div', { 'class': 'cbi-section-descr' }, _('Real-time packet and byte accounting from Netfilter chains across Dual-CAKE pre-proxy and WAN egress.')));
+        
+        var table = E('table', { 'class': 'table cbi-section-table', 'style': 'width: 100%; margin-top: 8px;' }, [
+            E('tr', { 'class': 'tr cbi-section-table-titles' }, [
+                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: left;' }, _('Rule Name')),
+                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: left;' }, _('Diffserv8 Priority Tin')),
+                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: right;' }, _('Total Bytes')),
+                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: right;' }, _('Total Packets')),
+                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: right;' }, _('IPv4 Packets')),
+                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: right;' }, _('IPv6 Packets'))
             ])
         ]);
-        container.appendChild(switchBar);
 
-        var tins = activeInstance.tins || [];
-        var totalBytes = tins.reduce(function(acc, t) { return acc + (t.sent_bytes || 0); }, 0);
-        var totalPackets = tins.reduce(function(acc, t) { return acc + (t.sent_packets || 0); }, 0);
-
-        var tinsGrid = E('div', { 'class': 'qm-grid qm-grid-2' });
-
-        // Iterate tins in descending order of priority (Tin 7 down to Tin 0)
-        for (var i = 7; i >= 0; i--) {
-            var meta = DIFFSERV8_META[i] || { name: 'Tin ' + i, dscp: 'Class', color: '#64748b', icon: '⚡', desc: '' };
-            var tin = tins[i] || {};
-            var sentBytes = tin.sent_bytes || 0;
-            var sentPackets = tin.sent_packets || 0;
-            var pct = totalBytes > 0 ? (sentBytes / totalBytes * 100).toFixed(1) : '0.0';
-
-            var avgDelayUs = tin.avg_delay_us || 0;
-            var peakDelayUs = tin.peak_delay_us || 0;
-            var avgDelay = formatTime(avgDelayUs);
-            var peakDelay = formatTime(peakDelayUs);
-
-            // Latency health indicator (against 5ms RFC target)
-            var latStatus = 'Optimal';
-            var latColor = '#16a34a';
-            if (avgDelayUs > 10000) {
-                latStatus = 'Congested';
-                latColor = '#dc2626';
-            } else if (avgDelayUs > 5000) {
-                latStatus = 'Elevated';
-                latColor = '#ea580c';
-            } else if (avgDelayUs > 2000) {
-                latStatus = 'Good';
-                latColor = '#0d9488';
-            }
-
-            var tinCard = E('div', { 'class': 'qm-card qm-tin-card', 'style': 'border-left-color: ' + meta.color + ';' }, [
-                E('div', { 'style': 'display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 0.4rem;' }, [
-                    E('div', { 'style': 'display: flex; align-items: center; gap: 0.45rem;' }, [
-                        E('span', { 'style': 'font-size: 1.25rem;' }, meta.icon),
-                        E('div', {}, [
-                            E('div', { 'style': 'font-weight: 700; font-size: 0.95rem; color: ' + meta.color + ';' }, 'Tin ' + i + ': ' + meta.name),
-                            E('div', { 'style': 'font-size: 0.72rem; color: #64748b;' }, meta.desc)
-                        ])
-                    ]),
-                    E('span', { 'class': 'qm-pill', 'style': 'background: ' + meta.color + '22; color: ' + meta.color + ';' }, meta.dscp)
-                ]),
-
-                // Progress Bar of Traffic Share
-                E('div', { 'style': 'display: flex; justify-content: space-between; font-size: 0.76rem; color: #64748b; font-weight: 600;' }, [
-                    E('span', {}, _('Traffic Share')),
-                    E('span', {}, pct + '% (' + formatSize(sentBytes) + ')')
-                ]),
-                E('div', { 'class': 'qm-bar-bg' }, [
-                    E('div', { 'class': 'qm-bar-fill', 'style': 'width: ' + pct + '%; background: ' + meta.color + ';' })
-                ]),
-
-                // Metrics Matrix Grid with Latency Status
-                E('div', { 'style': 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed var(--border-color-medium, #e2e8f0); font-size: 0.78rem;' }, [
-                    E('div', {}, [
-                        E('div', { 'style': 'color: #64748b; font-size: 0.7rem;' }, _('Packets Sent')),
-                        E('div', { 'style': 'font-weight: 700;' }, sentPackets.toLocaleString())
-                    ]),
-                    E('div', {}, [
-                        E('div', { 'style': 'color: #64748b; font-size: 0.7rem;' }, _('Avg Delay')),
-                        E('div', { 'style': 'font-weight: 700; color: ' + latColor + ';' }, avgDelay + ' (' + latStatus + ')')
-                    ]),
-                    E('div', {}, [
-                        E('div', { 'style': 'color: #64748b; font-size: 0.7rem;' }, _('Peak Delay')),
-                        E('div', { 'style': 'font-weight: 700;' }, peakDelay)
-                    ]),
-                    E('div', {}, [
-                        E('div', { 'style': 'color: #64748b; font-size: 0.7rem;' }, _('Flows (Sp / Blk)')),
-                        E('div', { 'style': 'font-weight: 700;' }, (tin.sparse_flows || 0) + ' / ' + (tin.bulk_flows || 0))
-                    ]),
-                    E('div', {}, [
-                        E('div', { 'style': 'color: #64748b; font-size: 0.7rem;' }, _('Buffer Drops')),
-                        E('div', { 'style': 'font-weight: 700; color: ' + (tin.drops > 0 ? '#e11d48' : '#64748b') + ';' }, tin.drops || 0)
-                    ]),
-                    E('div', {}, [
-                        E('div', { 'style': 'color: #64748b; font-size: 0.7rem;' }, _('ACK Drops')),
-                        E('div', { 'style': 'font-weight: 700;' }, tin.ack_drops || 0)
-                    ])
-                ])
-            ]);
-
-            tinsGrid.appendChild(tinCard);
-        }
-
-        container.appendChild(tinsGrid);
-    },
-
-    // --------------------------------------------------------------------------
-    // Render Active QoS Rules Live Table (Searchable & Filterable)
-    // --------------------------------------------------------------------------
-    renderRulesTable: function(container, rules, dt) {
-        var view = this;
-
-        // Search & Filter Bar
-        var filterBar = E('div', { 'style': 'display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.8rem; margin-bottom: 0.9rem;' }, [
-            E('div', { 'style': 'font-size: 0.95rem; font-weight: 700;' }, _('Configured Classification Rules')),
-            E('input', {
-                'type': 'text',
-                'class': 'qm-search',
-                'placeholder': _('Filter by name, port, DSCP, tin...'),
-                'value': view.searchQuery,
-                'input': function(ev) {
-                    view.searchQuery = ev.target.value.toLowerCase();
-                    var rows = container.querySelectorAll('.qm-rule-row');
-                    rows.forEach(function(r) {
-                        var txt = (r.getAttribute('data-filter') || '').toLowerCase();
-                        r.style.display = txt.includes(view.searchQuery) ? '' : 'none';
-                    });
-                }
-            })
-        ]);
-        container.appendChild(filterBar);
-
-        // Table Wrapper
-        var tableWrap = E('div', { 'class': 'qm-table-wrap' });
-        var table = E('table', { 'class': 'qm-table' });
-
-        var thead = E('thead', {}, [
-            E('tr', {}, [
-                E('th', { 'style': 'width: 32px;' }, ''),
-                E('th', {}, _('Rule Name')),
-                E('th', {}, _('DSCP Class')),
-                E('th', {}, _('Assigned Tin')),
-                E('th', {}, _('Total Packets')),
-                E('th', {}, _('Total Bytes')),
-                E('th', {}, _('Activity Rate')),
-                E('th', {}, _('IPv4 / IPv6 Breakdown'))
-            ])
-        ]);
-        table.appendChild(thead);
-
-        var tbody = E('tbody', {});
-
-        if (!rules || rules.length === 0) {
-            tbody.appendChild(E('tr', {}, [
-                E('td', { 'colspan': '8', 'style': 'text-align: center; color: #64748b; padding: 1.5rem;' }, _('No active rules detected or service restarting.'))
+        if (rows.length === 0) {
+            table.appendChild(E('tr', { 'class': 'tr cbi-section-table-row' }, [
+                E('td', { 'class': 'td cbi-section-table-cell', 'colspan': 6, 'style': 'text-align: center; color: #888; font-style: italic;' }, _('No active rule counters recorded yet.'))
             ]));
         } else {
-            // Sort by total bytes descending
-            var sortedRules = rules.slice().sort(function(a, b) {
-                return (b.total_bytes || 0) - (a.total_bytes || 0);
-            });
-
-            sortedRules.forEach(function(r) {
-                var prevPkts = view.prevRulePackets[r.rule_name] || 0;
-                var deltaPkts = r.total_packets - prevPkts;
-                view.prevRulePackets[r.rule_name] = r.total_packets;
-                var isLive = deltaPkts > 0;
-
-                // Infer DSCP and Tin accurately from rule name
-                var dscp = 'CS0';
-                var tinId = 2;
-                var nameLower = r.rule_name.toLowerCase();
-
-                if (nameLower.includes('dns') || nameLower.includes('ntp') || nameLower.includes('icmp')) {
-                    dscp = 'CS6'; tinId = 7;
-                } else if (nameLower.includes('gaming') || nameLower.includes('pc_gaming')) {
-                    dscp = 'CS5'; tinId = 6;
-                } else if (nameLower.includes('voice') || nameLower.includes('sip') || nameLower.includes('webrtc')) {
-                    dscp = 'EF'; tinId = 6;
-                } else if (nameLower.includes('ssh')) {
-                    dscp = 'CS2'; tinId = 5;
-                } else if (nameLower.includes('cloudflare') || nameLower.includes('homelab') || nameLower.includes('uptime')) {
-                    dscp = 'AF21'; tinId = 4;
-                } else if (nameLower.includes('stun') || nameLower.includes('rtmp') || nameLower.includes('streaming')) {
-                    dscp = 'AF41'; tinId = 3;
-                } else if (nameLower.includes('torrent') || nameLower.includes('bulk')) {
-                    dscp = 'CS1'; tinId = 1;
-                }
-
-                var meta = DIFFSERV8_META[tinId] || DIFFSERV8_META[2];
-                var badgeColor = getDscpBadgeColor(dscp);
-
-                var tr = E('tr', {
-                    'class': 'qm-rule-row',
-                    'data-filter': r.rule_name + ' ' + dscp + ' ' + meta.name + ' Tin ' + tinId
-                }, [
-                    E('td', { 'style': 'text-align: center;' }, [
-                        isLive ? E('span', { 'class': 'qm-pulse' }) : E('span', { 'style': 'display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #cbd5e1;' })
-                    ]),
-                    E('td', { 'style': 'font-weight: 600;' }, r.rule_name),
-                    E('td', {}, [
-                        E('span', { 'class': 'qm-pill', 'style': 'background: ' + badgeColor + '22; color: ' + badgeColor + ';' }, dscp)
-                    ]),
-                    E('td', {}, [
-                        E('span', { 'style': 'font-weight: 600; color: ' + meta.color + ';' }, 'Tin ' + tinId + ' (' + meta.name + ')')
-                    ]),
-                    E('td', { 'style': 'font-variant-numeric: tabular-nums;' }, (r.total_packets || 0).toLocaleString()),
-                    E('td', { 'style': 'font-weight: 600; font-variant-numeric: tabular-nums;' }, formatSize(r.total_bytes || 0)),
-                    E('td', { 'style': 'color: #64748b; font-size: 0.78rem;' }, isLive ? ('+' + deltaPkts + ' pkts/poll') : 'idle'),
-                    E('td', { 'style': 'color: #64748b; font-size: 0.78rem;' }, 'v4: ' + (r.ipv4_packets || 0).toLocaleString() + ' | v6: ' + (r.ipv6_packets || 0).toLocaleString())
+            rows.forEach(function(row) {
+                var tr = E('tr', { 'class': 'tr cbi-section-table-row' }, [
+                    E('td', { 'class': 'td cbi-section-table-cell', 'style': 'font-weight: 500;' }, row[0]),
+                    E('td', { 'class': 'td cbi-section-table-cell' }, row[1]),
+                    E('td', { 'class': 'td cbi-section-table-cell', 'style': 'text-align: right; font-family: monospace;' }, row[2]),
+                    E('td', { 'class': 'td cbi-section-table-cell', 'style': 'text-align: right; font-family: monospace;' }, row[3]),
+                    E('td', { 'class': 'td cbi-section-table-cell', 'style': 'text-align: right; font-family: monospace;' }, row[4]),
+                    E('td', { 'class': 'td cbi-section-table-cell', 'style': 'text-align: right; font-family: monospace;' }, row[5])
                 ]);
-
-                tbody.appendChild(tr);
+                table.appendChild(tr);
             });
         }
 
-        table.appendChild(tbody);
-        tableWrap.appendChild(table);
-        container.appendChild(tableWrap);
+        container.appendChild(table);
+        return container;
     },
 
-    // --------------------------------------------------------------------------
-    // Render Detailed Technical Engine Diagnostics (tc options)
-    // --------------------------------------------------------------------------
-    renderTcDetails: function(container, qosStats) {
-        var egress = qosStats.cake_egress || {};
-        var opts = egress.options || {};
-
-        var card = E('div', { 'class': 'qm-card', 'style': 'margin-bottom: 1rem;' }, [
-            E('div', { 'style': 'font-size: 1rem; font-weight: 700; margin-bottom: 0.75rem;' }, _('Kernel TC CAKE Parameters')),
-            E('div', { 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.8rem; font-size: 0.82rem;' }, [
-                E('div', {}, [ E('span', { 'style': 'color: #64748b;' }, _('Bandwidth Cap: ')), E('b', {}, (opts.bandwidth ? (opts.bandwidth / 1000000).toFixed(2) + ' Mbit/s' : '120 Mbit/s')) ]),
-                E('div', {}, [ E('span', { 'style': 'color: #64748b;' }, _('Diffserv Scheme: ')), E('b', {}, opts.diffserv || 'diffserv8') ]),
-                E('div', {}, [ E('span', { 'style': 'color: #64748b;' }, _('Flow Isolation: ')), E('b', {}, opts.flowmode || 'dual-srchost') ]),
-                E('div', {}, [ E('span', { 'style': 'color: #64748b;' }, _('NAT Awareness: ')), E('b', {}, opts.nat ? 'Enabled' : 'Disabled') ]),
-                E('div', {}, [ E('span', { 'style': 'color: #64748b;' }, _('TCP ACK Filter: ')), E('b', {}, opts['ack-filter'] || 'enabled') ]),
-                E('div', {}, [ E('span', { 'style': 'color: #64748b;' }, _('Split GSO: ')), E('b', {}, opts.split_gso ? 'Enabled' : 'Disabled') ]),
-                E('div', {}, [ E('span', { 'style': 'color: #64748b;' }, _('Target RTT: ')), E('b', {}, formatTime(opts.rtt || 100000)) ]),
-                E('div', {}, [ E('span', { 'style': 'color: #64748b;' }, _('Link Framing: ')), E('b', {}, (opts.atm || 'noatm') + ' (overhead: ' + (opts.overhead || 40) + 'B)') ])
-            ])
-        ]);
-        container.appendChild(card);
-    },
-
-    // --------------------------------------------------------------------------
-    // Render Autorate Panel & Time Series Charts (preserves full autorate telemetry)
-    // --------------------------------------------------------------------------
-    renderAutorateSection: function(container, ar) {
+    render: function(data) {
         var view = this;
+        var qosStats = data[0];
+        var historicalStats = data[1];
+        var rrdData = data[2];
+        var autorateStats = data[3];
+        
+        view.lastData = qosStats;
+        if (autorateStats && autorateStats.autorate_enabled) view.autorateData = autorateStats;
+        
+        // Create a separate container for settings to prevent it from being refreshed
+        var mainContainer;
+        var existingContainer = document.querySelector('.cbi-map-statistics');
+        var existingSettings = document.querySelector('.qosmate-settings-section');
+        
+        if (!existingContainer) {
+            // First time render, create the full layout
+            mainContainer = E('div', { 'class': 'cbi-map cbi-map-statistics' });
+            
+            // Create settings section that will remain stable across refreshes
+            var settingsSection = E('div', { 'class': 'cbi-section qosmate-settings-section', 'style': 'margin-bottom: 5px;' });
+            
+            // Create header for settings
+            var settingsHeader = E('h3', {}, _('QoSmate Settings'));
+            settingsSection.appendChild(settingsHeader);
+            
+            // Create completely custom styling independent of themes
+            var refreshRow = E('div', { 'style': 'margin-top: 0.5em; margin-left: 0.25em;' });
+            
+            // Directly inline elements without any theme classes
+            refreshRow.appendChild(E('span', {}, _('Refresh Interval')));
+            refreshRow.appendChild(document.createTextNode(' '));
+            
+            // Clean select with no special styling
+            var pollSelect = E('select', { 
+                'id': 'poll-interval',
+                'change': function(ev) {
+                    var newInterval = parseInt(ev.target.value, 10);
+                    
+                    if (view.pollHandler) {
+                        poll.remove(view.pollHandler);
+                    }
+                    
+                    view.pollInterval = newInterval;
+                    view.pollHandler = view.createPollFunction();
+                    poll.add(view.pollHandler, view.pollInterval);
+                }
+            });
+            
+            [2, 5, 10, 15, 30, 60].forEach(function(seconds) {
+                var option = E('option', { 'value': seconds }, seconds + ' ' + _('seconds'));
+                if (parseInt(view.pollInterval, 10) === seconds) {
+                    option.selected = true;
+                }
+                pollSelect.appendChild(option);
+            });
+            
+            refreshRow.appendChild(pollSelect);
+            settingsSection.appendChild(refreshRow);
+            
+            mainContainer.appendChild(settingsSection);
+            
+            // Create content container that will be refreshed
+            var contentContainer = E('div', { 'class': 'qosmate-content-container' });
+            mainContainer.appendChild(contentContainer);
+            
+            // Create persistent autorate container (survives poll rebuilds)
+            var autorateContainer = E('div', { 'class': 'qosmate-autorate-container', 'style': 'display: none;' });
+            
+            // Status panel
+            autorateContainer.appendChild(E('div', { 'class': 'cbi-section autorate-status-panel', 'style': 'margin-bottom: 5px;' }));
+            
+            // Time range selector
+            var timeRangeRow = E('div', { 'style': 'margin: 0.5em 0 0.8em 0.25em;' });
+            timeRangeRow.appendChild(E('span', {}, _('Time Range') + ' '));
+            var flashEnabled = uci.get('qosmate', 'autorate', 'flash_history') === '1';
+            var rangeSelect = E('select', {
+                'class': 'autorate-time-range',
+                'disabled': !flashEnabled ? '' : null,
+                'change': function(ev) {
+                    view.autorateTimeRange = ev.target.value;
+                    if (view.autorateData) view.updateAutorateUI(view.autorateData);
+                }
+            });
+            [['60m', '60 ' + _('minutes')]].concat(flashEnabled ? [
+                ['6h', '6 ' + _('hours')], ['24h', '24 ' + _('hours')],
+                ['7d', '7 ' + _('days')], ['30d', '30 ' + _('days')]
+            ] : []).forEach(function(opt) {
+                var o = E('option', { 'value': opt[0] }, opt[1]);
+                if (opt[0] === view.autorateTimeRange) o.selected = true;
+                rangeSelect.appendChild(o);
+            });
+            timeRangeRow.appendChild(rangeSelect);
+            
+            // Flash history toggle
+            var flashCb = E('input', {
+                'type': 'checkbox',
+                'id': 'autorate-flash-history',
+                'checked': flashEnabled ? '' : null,
+                'style': 'position: relative; top: -0.15rem; margin-right: 4px;',
+                'change': function(ev) {
+                    var enabled = ev.target.checked;
+                    var val = enabled ? '1' : '0';
+                    // Apply UCI change immediately (same pattern as connections.js)
+                    uci.load('qosmate').then(function() {
+                        uci.set('qosmate', 'autorate', 'flash_history', val);
+                        return uci.save();
+                    }).then(function() {
+                        return uci.apply();
+                    }).then(function() {
+                        uci.unload('qosmate');
+                        return uci.load('qosmate');
+                    });
+                    // Update dropdown immediately without waiting for apply
+                    var sel = document.querySelector('.autorate-time-range');
+                    if (sel) {
+                        view.autorateTimeRange = '60m';
+                        sel.value = '60m';
+                        while (sel.options.length > 1) sel.remove(1);
+                        if (enabled) {
+                            [['6h', '6 ' + _('hours')], ['24h', '24 ' + _('hours')],
+                             ['7d', '7 ' + _('days')], ['30d', '30 ' + _('days')]].forEach(function(opt) {
+                                sel.appendChild(E('option', { 'value': opt[0] }, opt[1]));
+                            });
+                            sel.disabled = false;
+                        } else {
+                            sel.disabled = true;
+                        }
+                    }
+                }
+            });
+            var flashLabel = E('label', {
+                'for': 'autorate-flash-history',
+                'style': 'margin-left: 1.5em; font-size: 12px; cursor: pointer;'
+            }, [ flashCb, ' ' + _('Enable long-term history') ]);
+            timeRangeRow.appendChild(flashLabel);
+            
+            autorateContainer.appendChild(timeRangeRow);
+            
+            // Data availability info hint (hidden by default)
+            autorateContainer.appendChild(E('div', {
+                'class': 'autorate-data-info',
+                'style': 'display: none; margin: 0 0.25em 0.5em; padding: 0.4em 0.6em; font-size: 12px; color: #888; font-style: italic;'
+            }));
+            
+            // Chart sections
+            var chartSection = E('div', { 'class': 'cbi-section', 'style': 'padding: 5px 0;' });
+            
+            var latencyWrap = E('div', { 'style': 'margin-bottom: 15px;' });
+            latencyWrap.appendChild(E('h3', { 'style': 'margin-bottom: 0.3em;' }, _('Latency')));
+            latencyWrap.appendChild(E('div', { 'class': 'autorate-latency-legend', 'style': 'margin-bottom: 0.4em; font-size: 11px;' }));
+            latencyWrap.appendChild(E('canvas', { 'class': 'autorate-latency-canvas', 'style': 'width: 100%; height: 220px; display: block;' }));
+            chartSection.appendChild(latencyWrap);
+            
+            var ulWrap = E('div', { 'style': 'margin-bottom: 15px;' });
+            ulWrap.appendChild(E('h3', { 'style': 'margin-bottom: 0.3em;' }, _('Upload Bandwidth')));
+            ulWrap.appendChild(E('div', { 'class': 'autorate-ul-legend', 'style': 'margin-bottom: 0.4em; font-size: 11px;' }));
+            ulWrap.appendChild(E('canvas', { 'class': 'autorate-ul-canvas', 'style': 'width: 100%; height: 220px; display: block;' }));
+            chartSection.appendChild(ulWrap);
+            
+            var dlWrap = E('div', { 'style': 'margin-bottom: 15px;' });
+            dlWrap.appendChild(E('h3', { 'style': 'margin-bottom: 0.3em;' }, _('Download Bandwidth')));
+            dlWrap.appendChild(E('div', { 'class': 'autorate-dl-legend', 'style': 'margin-bottom: 0.4em; font-size: 11px;' }));
+            dlWrap.appendChild(E('canvas', { 'class': 'autorate-dl-canvas', 'style': 'width: 100%; height: 220px; display: block;' }));
+            chartSection.appendChild(dlWrap);
+            
+            autorateContainer.appendChild(chartSection);
+            mainContainer.appendChild(autorateContainer);
+            
+            // Setup initial polling using LuCI poll API
+            if (!view.pollHandler) {
+                view.pollHandler = view.createPollFunction();
+                poll.add(view.pollHandler, view.pollInterval);
+            }
+        } else {
+            // Re-use the existing container during subsequent renders
+            mainContainer = existingContainer;
+        }
+        
+        return mainContainer;
+    },
+    
+    // New method to update only the content part of the page
+    updateContent: function(data) {
+        var view = this;
+        var qosStats = data[0];
+        var historicalStats = data[1];
+        var rrdData = data[2];
+        var autorateStats = data[3];
+        var ruleCounters = data[4] || { rule_counters: [] };
+        
+        // Update autorate charts (persistent container, not rebuilt)
+        var autorateEnabled = autorateStats && autorateStats.autorate_enabled;
+        if (autorateEnabled) {
+            view.autorateData = autorateStats;
+            view.updateAutorateUI(autorateStats);
+        } else {
+            // Hide autorate container if autorate was disabled
+            var arContainer = document.querySelector('.qosmate-autorate-container');
+            if (arContainer) arContainer.style.display = 'none';
+        }
+        
+        // Save the active tab index before refreshing content
+        var activeTab = document.querySelector('.cbi-tab.cbi-tab-active');
+        if (activeTab) {
+            view.activeTabIndex = parseInt(activeTab.getAttribute('data-tab-index') || 0, 10);
+        }
+        
+        // Get the content container
+        var contentContainer = document.querySelector('.qosmate-content-container');
+        if (!contentContainer) return;
+        
+        // Clear the current content
+        dom.content(contentContainer, '');
+        
+        // Add general info section
+        if (qosStats) {
+            // Create a standard section
+            var generalInfo = E('div', { 'class': 'cbi-section', 'style': 'margin-bottom: 5px;' });
+            
+            // Create header for general info
+            var headerSection = E('h3', { 'style': 'margin-bottom: 0.5em;' }, _('General Information'));
+            generalInfo.appendChild(headerSection);
+            
+            // Create completely custom container for info using flexbox for horizontal layout
+            var infoContainer = E('div', { 'style': 'display: flex; flex-wrap: wrap; margin-left: 0.25em;' });
+            
+            // Create simple layout items that will display horizontally
+            if (qosStats.root_qdisc) {
+                var row = E('div', { 'style': 'margin-right: 1.5em; margin-bottom: 0.3em;' });
+                row.appendChild(E('span', { 'style': 'font-weight: bold;' }, _('Root Queueing Discipline:')));
+                row.appendChild(document.createTextNode(' '));
+                row.appendChild(E('span', {}, qosStats.root_qdisc || '-'));
+                infoContainer.appendChild(row);
+            }
+            
+            if (qosStats.wan_interface) {
+                var row = E('div', { 'style': 'margin-right: 1.5em; margin-bottom: 0.3em;' });
+                row.appendChild(E('span', { 'style': 'font-weight: bold;' }, _('WAN Interface:')));
+                row.appendChild(document.createTextNode(' '));
+                row.appendChild(E('span', {}, qosStats.wan_interface || '-'));
+                infoContainer.appendChild(row);
+            }
+            
+            // A rate of 0 disables that direction, so one of the tabs stays empty on purpose
+            var statsUpRate = parseInt(uci.get('qosmate', 'settings', 'UPRATE') || '0');
+            var statsDownRate = parseInt(uci.get('qosmate', 'settings', 'DOWNRATE') || '0');
+            if (statsUpRate === 0 || statsDownRate === 0) {
+                var dirText = statsUpRate === 0 && statsDownRate === 0
+                    ? _('disabled in both directions (both rates are 0)')
+                    : (statsDownRate === 0 ? _('egress only (DOWNRATE=0, no ingress statistics)')
+                                           : _('ingress only (UPRATE=0, no egress statistics)'));
+                var row = E('div', { 'style': 'margin-right: 1.5em; margin-bottom: 0.3em; color: orange;' });
+                row.appendChild(E('span', { 'style': 'font-weight: bold;' }, _('Shaping:')));
+                row.appendChild(document.createTextNode(' '));
+                row.appendChild(E('span', {}, dirText));
+                infoContainer.appendChild(row);
+            }
+            
+            // Add CAKE-specific or HFSC-specific info
+            if (qosStats.root_qdisc === 'cake') {
+                if (qosStats.priority_queue_ingress) {
+                    var row = E('div', { 'style': 'margin-right: 1.5em; margin-bottom: 0.3em;' });
+                    row.appendChild(E('span', { 'style': 'font-weight: bold;' }, _('Priority Queue Type (Ingress):')));
+                    row.appendChild(document.createTextNode(' '));
+                    row.appendChild(E('span', {}, qosStats.priority_queue_ingress || '-'));
+                    infoContainer.appendChild(row);
+                }
+                
+                if (qosStats.priority_queue_egress) {
+                    var row = E('div', { 'style': 'margin-right: 1.5em; margin-bottom: 0.3em;' });
+                    row.appendChild(E('span', { 'style': 'font-weight: bold;' }, _('Priority Queue Type (Egress):')));
+                    row.appendChild(document.createTextNode(' '));
+                    row.appendChild(E('span', {}, qosStats.priority_queue_egress || '-'));
+                    infoContainer.appendChild(row);
+                }
+            } else if (qosStats.root_qdisc === 'hfsc' || qosStats.root_qdisc === 'hybrid') {
+                if (qosStats.gameqdisc) {
+                    var row = E('div', { 'style': 'margin-right: 1.5em; margin-bottom: 0.3em;' });
+                    row.appendChild(E('span', { 'style': 'font-weight: bold;' }, _('Game Queue Discipline:')));
+                    row.appendChild(document.createTextNode(' '));
+                    row.appendChild(E('span', {}, qosStats.gameqdisc || '-'));
+                    infoContainer.appendChild(row);
+                }
+            }
+            
+            // Architecture & Pipeline Overview (Theme-consistent)
+            var pipelineBar = E('div', { 'class': 'cbi-section-node', 'style': 'margin-top: 6px; padding: 6px 10px; border: 1px solid var(--cbi-border, rgba(128,128,128,0.2)); border-radius: 4px; font-size: 12px;' }, [
+                E('span', { 'style': 'font-weight: bold; margin-right: 6px;' }, _('QoS Pipeline:')),
+                E('span', {}, 'LAN Ingress ➔ Dual-CAKE (Pre-Proxy) ➔ QoSmate (-160) ➔ Passwall 2 / Xray (-151) ➔ WAN CAKE Diffserv8 (Post-Proxy)')
+            ]);
+            generalInfo.appendChild(infoContainer);
+            generalInfo.appendChild(pipelineBar);
+            contentContainer.appendChild(generalInfo);
+            
+            // Create tabbed interface
+            var tabsContainer = E('div', { 'class': 'cbi-section', 'style': 'padding: 0; margin-bottom: 5px;' });
+            var tabNames = [_('Egress (Upload)'), _('Ingress (Download)')];
+            var lanTabIndex = -1;
+            if (qosStats.cake_lan || qosStats.ifb_lan_interface) {
+                lanTabIndex = tabNames.length;
+                tabNames.push(_('Pre-Proxy LAN (br-lan)'));
+            }
+            var rulesTabIndex = tabNames.length;
+            tabNames.push(_('Rules Activity'));
+            
+            var autorateTabIndex = -1;
+            if (autorateEnabled) {
+                autorateTabIndex = tabNames.length;
+                tabNames.push(_('Autorate'));
+            }
+            // Reset to first tab if saved index is out of range
+            if (view.activeTabIndex >= tabNames.length) view.activeTabIndex = 0;
+            var tabContents = [];
+            for (var tIdx = 0; tIdx < tabNames.length; tIdx++) {
+                tabContents.push(E('div', { 'style': 'padding: 5px 0; display: ' + (tIdx === view.activeTabIndex ? 'block' : 'none') + ';' }));
+            }
+            
+            // Reference to persistent autorate container
+            var autorateContainer = document.querySelector('.qosmate-autorate-container');
+            
+            // Add tab buttons container
+            var tabButtons = E('ul', { 'class': 'cbi-tabmenu', 'style': 'margin-left: 0; padding-left: 1px;' });
+            
+            tabNames.forEach(function(name, index) {
+                var isActive = index === view.activeTabIndex;
+                var button = E('li', { 'class': isActive ? 'cbi-tab' : 'cbi-tab-disabled' }, [
+                    E('a', {
+                        'href': '#',
+                        'data-tab-index': index,
+                        'click': function(ev) {
+                            ev.preventDefault();
+                            
+                            // Store the active tab index
+                            view.activeTabIndex = parseInt(ev.target.getAttribute('data-tab-index') || ev.target.parentNode.getAttribute('data-tab-index'));
+                            
+                            // Update tab button styles
+                            tabButtons.querySelectorAll('li').forEach(function(tab, i) {
+                                if (i === view.activeTabIndex) {
+                                    tab.className = 'cbi-tab';
+                                } else {
+                                    tab.className = 'cbi-tab-disabled';
+                                }
+                            });
+                            
+                            // Show corresponding tab content and hide others
+                            var isAutorate = autorateTabIndex >= 0 && view.activeTabIndex === autorateTabIndex;
+                            tabContents.forEach(function(content, i) {
+                                content.style.display = (!isAutorate && i === view.activeTabIndex) ? 'block' : 'none';
+                            });
+                            if (autorateContainer) {
+                                autorateContainer.style.display = isAutorate ? 'block' : 'none';
+                                if (isAutorate && view.autorateData) view.updateAutorateUI(view.autorateData);
+                            }
+                        }
+                    }, name)
+                ]);
+                
+                tabButtons.appendChild(button);
+            });
+            
+            // Set initial display state based on the active tab index
+            var isAutorateActive = autorateTabIndex >= 0 && view.activeTabIndex === autorateTabIndex;
+            tabContents.forEach(function(content, i) {
+                content.style.display = (!isAutorateActive && i === view.activeTabIndex) ? 'block' : 'none';
+            });
+            if (autorateContainer) {
+                autorateContainer.style.display = isAutorateActive ? 'block' : 'none';
+            }
+            
+            tabsContainer.appendChild(tabButtons);
+            
+            // Process and display statistics based on root qdisc
+            if (qosStats.root_qdisc === 'cake') {
+                var cakeResults = this.processCakeStats(qosStats);
+                
+                // Process and display tables in appropriate tabs
+                if (cakeResults.tables.length > 0) {
+                    // Find correct indices for egress and ingress tables
+                    var egressTable = null;
+                    var ingressTable = null;
+                    
+                    // Find the egress and ingress tables by looking at their titles
+                    for (var i = 0; i < cakeResults.tables.length; i++) {
+                        var titleElement = cakeResults.tables[i].querySelector('h3, .table-title');
+                        if (titleElement) {
+                            var title = titleElement.textContent || titleElement.innerText;
+                            if (isEgressHeading(title)) {
+                                egressTable = cakeResults.tables[i];
+                            } else if (isIngressHeading(title)) {
+                                ingressTable = cakeResults.tables[i];
+                            }
+                        }
+                    }
+                    
+                    var lanTable = null;
+                    for (var i = 0; i < cakeResults.tables.length; i++) {
+                        var titleElement = cakeResults.tables[i].querySelector('h3, .table-title');
+                        if (titleElement) {
+                            var title = titleElement.textContent || titleElement.innerText;
+                            if (isLanHeading(title)) {
+                                lanTable = cakeResults.tables[i];
+                            }
+                        }
+                    }
+
+                    // Egress table section
+                    if (egressTable && tabContents[0]) {
+                        tabContents[0].appendChild(egressTable);
+                    }
+                    
+                    // Ingress table section
+                    if (ingressTable && tabContents[1]) {
+                        tabContents[1].appendChild(ingressTable);
+                    }
+
+                    // Pre-Proxy LAN table section
+                    if (lanTable && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
+                        tabContents[lanTabIndex].appendChild(lanTable);
+                    }
+                    
+                    // Process charts
+                    if (cakeResults.charts.length > 0) {
+                        var egressCharts = [];
+                        var ingressCharts = [];
+                        
+                        var lanCharts = [];
+                        for (var i = 0; i < cakeResults.charts.length; i++) {
+                            var chartTitle = cakeResults.charts[i].querySelector('h3');
+                            var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
+                            
+                            if (isLanHeading(titleText)) {
+                                lanCharts.push(cakeResults.charts[i]);
+                            } else if (isEgressHeading(titleText)) {
+                                egressCharts.push(cakeResults.charts[i]);
+                            } else if (isIngressHeading(titleText)) {
+                                ingressCharts.push(cakeResults.charts[i]);
+                            }
+                        }
+                        
+                        // Create egress charts section
+                        if (egressCharts.length > 0) {
+                            var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var egressGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            
+                            egressCharts.forEach(function(chart) {
+                                egressGrid.appendChild(chart);
+                            });
+                            
+                            egressChartsContainer.appendChild(egressGrid);
+                            tabContents[0].appendChild(egressChartsContainer);
+                        }
+                        
+                        // Create ingress charts section
+                        if (ingressCharts.length > 0) {
+                            var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var ingressGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            
+                            ingressCharts.forEach(function(chart) {
+                                ingressGrid.appendChild(chart);
+                            });
+                            
+                            ingressChartsContainer.appendChild(ingressGrid);
+                            tabContents[1].appendChild(ingressChartsContainer);
+                        }
+
+                        // Create Pre-Proxy LAN charts section
+                        if (lanCharts.length > 0 && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
+                            var lanChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var lanGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            lanCharts.forEach(function(chart) {
+                                lanGrid.appendChild(chart);
+                            });
+                            lanChartsContainer.appendChild(lanGrid);
+                            tabContents[lanTabIndex].appendChild(lanChartsContainer);
+                        }
+                    }
+                }
+            } else if (qosStats.root_qdisc === 'hfsc') {
+                var hfscResults = this.processHfscStats(qosStats);
+                
+                // Process and display tables in appropriate tabs
+                if (hfscResults.tables.length > 0) {
+                    // Find correct indices for egress and ingress tables
+                    var egressTable = null;
+                    var ingressTable = null;
+                    
+                    // Find the egress and ingress tables by looking at their titles
+                    for (var i = 0; i < hfscResults.tables.length; i++) {
+                        var titleElement = hfscResults.tables[i].querySelector('h3, .table-title');
+                        if (titleElement) {
+                            var title = titleElement.textContent || titleElement.innerText;
+                            if (isEgressHeading(title)) {
+                                egressTable = hfscResults.tables[i];
+                            } else if (isIngressHeading(title)) {
+                                ingressTable = hfscResults.tables[i];
+                            }
+                        }
+                    }
+                    
+                    var lanTable = null;
+                    for (var i = 0; i < cakeResults.tables.length; i++) {
+                        var titleElement = cakeResults.tables[i].querySelector('h3, .table-title');
+                        if (titleElement) {
+                            var title = titleElement.textContent || titleElement.innerText;
+                            if (isLanHeading(title)) {
+                                lanTable = cakeResults.tables[i];
+                            }
+                        }
+                    }
+
+                    // Egress table section
+                    if (egressTable && tabContents[0]) {
+                        tabContents[0].appendChild(egressTable);
+                    }
+                    
+                    // Ingress table section
+                    if (ingressTable && tabContents[1]) {
+                        tabContents[1].appendChild(ingressTable);
+                    }
+
+                    // Pre-Proxy LAN table section
+                    if (lanTable && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
+                        tabContents[lanTabIndex].appendChild(lanTable);
+                    }
+                    
+                    // Process charts
+                    if (hfscResults.charts.length > 0) {
+                        var egressCharts = [];
+                        var ingressCharts = [];
+                        
+                        // Categorize charts as egress or ingress based on their titles
+                        for (var i = 0; i < hfscResults.charts.length; i++) {
+                            var chartTitle = hfscResults.charts[i].querySelector('h3');
+                            var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
+                            
+                            if (isEgressHeading(titleText)) {
+                                egressCharts.push(hfscResults.charts[i]);
+                            } else if (isIngressHeading(titleText)) {
+                                ingressCharts.push(hfscResults.charts[i]);
+                            }
+                        }
+                        
+                        // Create egress charts section
+                        if (egressCharts.length > 0) {
+                            var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var egressGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            
+                            egressCharts.forEach(function(chart) {
+                                egressGrid.appendChild(chart);
+                            });
+                            
+                            egressChartsContainer.appendChild(egressGrid);
+                            tabContents[0].appendChild(egressChartsContainer);
+                        }
+                        
+                        // Create ingress charts section
+                        if (ingressCharts.length > 0) {
+                            var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var ingressGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            
+                            ingressCharts.forEach(function(chart) {
+                                ingressGrid.appendChild(chart);
+                            });
+                            
+                            ingressChartsContainer.appendChild(ingressGrid);
+                            tabContents[1].appendChild(ingressChartsContainer);
+                        }
+
+                        // Create Pre-Proxy LAN charts section
+                        if (lanCharts.length > 0 && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
+                            var lanChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var lanGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            lanCharts.forEach(function(chart) {
+                                lanGrid.appendChild(chart);
+                            });
+                            lanChartsContainer.appendChild(lanGrid);
+                            tabContents[lanTabIndex].appendChild(lanChartsContainer);
+                        }
+                    }
+                }
+            } else if (qosStats.root_qdisc === 'hybrid') {
+                var hybridResults = this.processHybridStats(qosStats);
+                
+                // Process and display tables in appropriate tabs
+                if (hybridResults.tables.length > 0) {
+                    // Separate tables by type
+                    var egressClassTable = null;
+                    var ingressClassTable = null;
+                    var cakeEgressTable = null;
+                    var cakeIngressTable = null;
+                    
+                    // Categorize tables by their titles
+                    for (var i = 0; i < hybridResults.tables.length; i++) {
+                        var titleElement = hybridResults.tables[i].querySelector('h3, .table-title');
+                        if (titleElement) {
+                            var title = titleElement.textContent || titleElement.innerText;
+                            if (title === _('Hybrid Egress Class Statistics')) {
+                                egressClassTable = hybridResults.tables[i];
+                            } else if (title === _('Hybrid Ingress Class Statistics')) {
+                                ingressClassTable = hybridResults.tables[i];
+                            } else if (title === _('CAKE Statistics for Default Class (Egress)')) {
+                                cakeEgressTable = hybridResults.tables[i];
+                            } else if (title === _('CAKE Statistics for Default Class (Ingress)')) {
+                                cakeIngressTable = hybridResults.tables[i];
+                            }
+                        }
+                    }
+                    
+                    // Add tables to appropriate tabs
+                    if (egressClassTable) {
+                        tabContents[0].appendChild(egressClassTable);
+                    }
+                    if (cakeEgressTable) {
+                        tabContents[0].appendChild(cakeEgressTable);
+                    }
+                    
+                    if (ingressClassTable) {
+                        tabContents[1].appendChild(ingressClassTable);
+                    }
+                    if (cakeIngressTable) {
+                        tabContents[1].appendChild(cakeIngressTable);
+                    }
+                    
+                    // Process charts
+                    if (hybridResults.charts.length > 0) {
+                        var egressCharts = [];
+                        var ingressCharts = [];
+                        
+                        // Categorize charts as egress or ingress based on their titles
+                        for (var i = 0; i < hybridResults.charts.length; i++) {
+                            var chartTitle = hybridResults.charts[i].querySelector('h3');
+                            var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
+                            
+                            if (isEgressHeading(titleText)) {
+                                egressCharts.push(hybridResults.charts[i]);
+                            } else if (isIngressHeading(titleText)) {
+                                ingressCharts.push(hybridResults.charts[i]);
+                            }
+                        }
+                        
+                        // Create egress charts section
+                        if (egressCharts.length > 0) {
+                            var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var egressGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            
+                            egressCharts.forEach(function(chart) {
+                                egressGrid.appendChild(chart);
+                            });
+                            
+                            egressChartsContainer.appendChild(egressGrid);
+                            tabContents[0].appendChild(egressChartsContainer);
+                        }
+                        
+                        // Create ingress charts section
+                        if (ingressCharts.length > 0) {
+                            var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var ingressGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            
+                            ingressCharts.forEach(function(chart) {
+                                ingressGrid.appendChild(chart);
+                            });
+                            
+                            ingressChartsContainer.appendChild(ingressGrid);
+                            tabContents[1].appendChild(ingressChartsContainer);
+                        }
+
+                        // Create Pre-Proxy LAN charts section
+                        if (lanCharts.length > 0 && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
+                            var lanChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var lanGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            lanCharts.forEach(function(chart) {
+                                lanGrid.appendChild(chart);
+                            });
+                            lanChartsContainer.appendChild(lanGrid);
+                            tabContents[lanTabIndex].appendChild(lanChartsContainer);
+                        }
+                    }
+                }
+            } else if (qosStats.root_qdisc === 'htb') {
+                var htbResults = this.processHtbStats(qosStats);
+                
+                // Process and display tables in appropriate tabs
+                if (htbResults.tables.length > 0) {
+                    // Separate tables by type
+                    var egressClassTable = null;
+                    var ingressClassTable = null;
+                    
+                    // Categorize tables by their titles
+                    for (var i = 0; i < htbResults.tables.length; i++) {
+                        var titleElement = htbResults.tables[i].querySelector('h3, .table-title');
+                        if (titleElement) {
+                            var title = titleElement.textContent || titleElement.innerText;
+                            if (title === _('HTB Egress Class Statistics')) {
+                                egressClassTable = htbResults.tables[i];
+                            } else if (title === _('HTB Ingress Class Statistics')) {
+                                ingressClassTable = htbResults.tables[i];
+                            }
+                        }
+                    }
+                    
+                    // Add tables to appropriate tabs
+                    if (egressClassTable) {
+                        tabContents[0].appendChild(egressClassTable);
+                    }
+                    if (ingressClassTable) {
+                        tabContents[1].appendChild(ingressClassTable);
+                    }
+                    
+                    // Process charts
+                    if (htbResults.charts.length > 0) {
+                        var egressCharts = [];
+                        var ingressCharts = [];
+                        
+                        // Categorize charts as egress or ingress based on their titles
+                        for (var i = 0; i < htbResults.charts.length; i++) {
+                            var chartTitle = htbResults.charts[i].querySelector('h3');
+                            var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
+                            
+                            if (isEgressHeading(titleText)) {
+                                egressCharts.push(htbResults.charts[i]);
+                            } else if (isIngressHeading(titleText)) {
+                                ingressCharts.push(htbResults.charts[i]);
+                            }
+                        }
+                        
+                        // Create egress charts section
+                        if (egressCharts.length > 0) {
+                            var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var egressGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            
+                            egressCharts.forEach(function(chart) {
+                                egressGrid.appendChild(chart);
+                            });
+                            
+                            egressChartsContainer.appendChild(egressGrid);
+                            tabContents[0].appendChild(egressChartsContainer);
+                        }
+                        
+                        // Create ingress charts section
+                        if (ingressCharts.length > 0) {
+                            var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var ingressGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            
+                            ingressCharts.forEach(function(chart) {
+                                ingressGrid.appendChild(chart);
+                            });
+                            
+                            ingressChartsContainer.appendChild(ingressGrid);
+                            tabContents[1].appendChild(ingressChartsContainer);
+                        }
+
+                        // Create Pre-Proxy LAN charts section
+                        if (lanCharts.length > 0 && lanTabIndex >= 0 && tabContents[lanTabIndex]) {
+                            var lanChartsContainer = E('div', { 'class': 'cbi-section-node' });
+                            var lanGrid = E('div', { 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                            });
+                            lanCharts.forEach(function(chart) {
+                                lanGrid.appendChild(chart);
+                            });
+                            lanChartsContainer.appendChild(lanGrid);
+                            tabContents[lanTabIndex].appendChild(lanChartsContainer);
+                        }
+                    }
+                }
+            }
+            
+            // Append tab contents to container
+            tabContents.forEach(function(content) {
+                tabsContainer.appendChild(content);
+            });
+            
+            contentContainer.appendChild(tabsContainer);
+        } else {
+            contentContainer.appendChild(E('div', { 'class': 'cbi-section' }, [
+                E('p', {}, _('No QoS statistics available. Make sure QoSmate is running.'))
+            ]));
+        }
+    },
+    
+    // Build a DOM legend element from items array [{label, color, dashed}]
+    buildChartLegend: function(container, items) {
+        dom.content(container, '');
+        items.forEach(function(item, i) {
+            if (i > 0) container.appendChild(document.createTextNode('  '));
+            var lineStyle = 'display: inline-block; width: 18px; height: 0; vertical-align: middle;'
+                + ' border-top: 2px ' + (item.dashed ? 'dashed' : 'solid') + ' ' + item.color + ';'
+                + ' margin-right: 4px;';
+            container.appendChild(E('span', { 'style': 'white-space: nowrap; margin-right: 12px;' }, [
+                E('span', { 'style': lineStyle }),
+                E('span', {}, item.label)
+            ]));
+        });
+    },
+
+    // Update autorate status panel and charts with current data
+    updateAutorateUI: function(ar) {
         var cur = ar.current || {};
         var cfg = ar.config || {};
-        var range = view.autorateTimeRange || '60m';
-
-        var wrap = E('div', { 'class': 'qm-card' });
-
-        var timeRangeBar = E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem;' }, [
-            E('div', { 'style': 'font-size: 1rem; font-weight: 700;' }, _('Dynamic Autorate Telemetry')),
-            E('div', { 'style': 'display: flex; align-items: center; gap: 0.5rem;' }, [
-                E('span', { 'style': 'font-size: 0.8rem; color: #64748b;' }, _('Range:')),
-                E('select', {
-                    'class': 'cbi-input-select',
-                    'style': 'padding: 0.35rem 0.6rem; border-radius: 6px; font-size: 0.82rem;',
-                    'change': function(ev) {
-                        view.autorateTimeRange = ev.target.value;
-                        view.updateContent([view.lastStats, null, null, null, ar]);
-                    }
-                }, [
-                    ['60m', '60 ' + _('min')],
-                    ['6h', '6 ' + _('hours')],
-                    ['24h', '24 ' + _('hours')],
-                    ['7d', '7 ' + _('days')],
-                    ['30d', '30 ' + _('days')]
-                ].map(function(opt) {
-                    var o = E('option', { 'value': opt[0] }, opt[1]);
-                    if (opt[0] === range) o.selected = true;
-                    return o;
-                }))
-            ])
-        ]);
-        wrap.appendChild(timeRangeBar);
-
-        var latMs = (cur.latency / 10).toFixed(1);
-        var blMs = (cur.baseline / 10).toFixed(1);
-        var ulMbps = (cur.ul_rate / 1000).toFixed(1);
-        var dlMbps = (cur.dl_rate / 1000).toFixed(1);
-
-        var statusRow = E('div', { 'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.8rem; background: rgba(0,0,0,0.02); padding: 0.8rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.82rem;' }, [
-            E('div', {}, [ E('span', { 'style': 'color: #64748b;' }, _('Live Latency: ')), E('b', {}, latMs + ' ms'), E('span', { 'style': 'color: #94a3b8;' }, ' (base: ' + blMs + ' ms)') ]),
-            E('div', {}, [ E('span', { 'style': 'color: #64748b;' }, _('Upload Rate: ')), E('b', {}, ulMbps + ' Mbit/s'), E('span', { 'style': 'color: #94a3b8;' }, ' (' + (cur.ul_load_pct || 0) + '% load)') ]),
-            E('div', {}, [ E('span', { 'style': 'color: #64748b;' }, _('Download Rate: ')), E('b', {}, dlMbps + ' Mbit/s'), E('span', { 'style': 'color: #94a3b8;' }, ' (' + (cur.dl_load_pct || 0) + '% load)') ])
-        ]);
-        wrap.appendChild(statusRow);
-
-        container.appendChild(wrap);
+        var range = this.autorateTimeRange || '60m';
+        
+        // Choose data source: RAM (60m) or flash (longer ranges)
+        // RAM format: [ts, ul, dl, a_ul, a_dl, lat, bl, ulp, dlp] (9 fields)
+        // Flash format: [ts, avg_ul, avg_dl, avg_a_ul, avg_a_dl, avg_lat, max_lat, avg_bl, avg_ulp, avg_dlp] (10 fields)
+        var isFlash = range !== '60m';
+        var rangeSec = { '60m': 3600, '6h': 21600, '24h': 86400, '7d': 604800, '30d': 2592000 };
+        var maxAge = rangeSec[range] || 3600;
+        var rawHistory = isFlash ? (ar.flash_history || []) : (ar.history || []);
+        
+        // For flash views, replace overlapping flash data with full-resolution RAM data
+        // This gives the full 60min of RAM detail and avoids visual artifacts at the boundary
+        if (isFlash && ar.history && ar.history.length > 0) {
+            var oldestRamTs = ar.history[0][0];
+            // Keep only flash entries older than the RAM window
+            rawHistory = rawHistory.filter(function(h) { return h[0] < oldestRamTs; });
+            // Bridge: extend last flash value to RAM start for seamless visual transition
+            if (rawHistory.length > 0) {
+                var last = rawHistory[rawHistory.length - 1];
+                // Use a timestamp just before RAM start to avoid duplicate-x artifacts
+                var bridgeTs = oldestRamTs > last[0] ? (oldestRamTs - 1) : oldestRamTs;
+                rawHistory.push([bridgeTs, last[1], last[2], last[3], last[4],
+                                 last[5], last[6], last[7], last[8], last[9]]);
+            }
+            // Convert RAM [ts,ul,dl,a_ul,a_dl,lat,bl,ulp,dlp] to flash format
+            // by duplicating lat as max_lat: [ts,ul,dl,a_ul,a_dl,lat,lat,bl,ulp,dlp]
+            rawHistory = rawHistory.concat(ar.history.map(function(h) {
+                return [h[0], h[1], h[2], h[3], h[4], h[5], h[5], h[6], h[7], h[8]];
+            }));
+        }
+        
+        // Ensure chronological order and collapse duplicate timestamps.
+        // Duplicate timestamps can produce crossing/looping visual artifacts in canvas line rendering.
+        if (rawHistory.length > 1) {
+            rawHistory.sort(function(a, b) { return (+a[0]) - (+b[0]); });
+            var normalized = [rawHistory[0]];
+            for (var ri = 1; ri < rawHistory.length; ri++) {
+                var prev = normalized[normalized.length - 1];
+                var curH = rawHistory[ri];
+                if ((+prev[0]) === (+curH[0])) normalized[normalized.length - 1] = curH;
+                else normalized.push(curH);
+            }
+            rawHistory = normalized;
+        }
+        
+        // Filter data by requested time range
+        if (rawHistory.length > 0) {
+            var latestTs = rawHistory[rawHistory.length - 1][0];
+            var cutoff = latestTs - maxAge;
+            rawHistory = rawHistory.filter(function(h) { return h[0] >= cutoff; });
+        }
+        
+        // Show info hint for long-range aggregation and incomplete history
+        var infoEl = document.querySelector('.autorate-data-info');
+        if (infoEl) {
+            var rangeNote = '';
+            var availabilityNote = '';
+            
+            if (isFlash) {
+                rangeNote = _('For ranges above 60 minutes, recent data (last 60 min) is high-resolution, while older points are aggregated and less precise. "Latency (max)" highlights spikes that average latency may hide.');
+            }
+            
+            if (isFlash && rawHistory.length < 2) {
+                availabilityNote = _('No hourly history available yet. Data is consolidated once per hour.');
+            } else if (isFlash && rawHistory.length > 0) {
+                var dataSpanHours = Math.round((rawHistory[rawHistory.length - 1][0] - rawHistory[0][0]) / 3600);
+                var requestedHours = Math.round(maxAge / 3600);
+                if (dataSpanHours < requestedHours * 0.9) {
+                    availabilityNote = _('Showing %s of data (requested %s). History grows over time.')
+                        .format(dataSpanHours <= 24 ? dataSpanHours + 'h' : Math.round(dataSpanHours / 24) + 'd',
+                                requestedHours <= 24 ? requestedHours + 'h' : Math.round(requestedHours / 24) + 'd');
+                }
+            }
+            
+            if (availabilityNote && rangeNote)
+                infoEl.textContent = availabilityNote + ' ' + rangeNote;
+            else
+                infoEl.textContent = availabilityNote || rangeNote;
+            
+            if (infoEl.textContent)
+                infoEl.style.display = '';
+            else
+                infoEl.style.display = 'none';
+        }
+        
+        // Update status panel
+        var panel = document.querySelector('.autorate-status-panel');
+        if (panel) {
+            var latMs = (cur.latency / 10).toFixed(1);
+            var blMs = (cur.baseline / 10).toFixed(1);
+            var ulMbps = (cur.ul_rate / 1000).toFixed(1);
+            var dlMbps = (cur.dl_rate / 1000).toFixed(1);
+            var baseUlMbps = (cfg.base_ul / 1000).toFixed(1);
+            var baseDlMbps = (cfg.base_dl / 1000).toFixed(1);
+            
+            dom.content(panel, [
+                E('h3', { 'style': 'margin-bottom: 0.5em;' }, _('Autorate Status')),
+                E('div', { 'style': 'display: flex; flex-wrap: wrap; gap: 1.5em; margin-left: 0.25em;' }, [
+                    E('div', {}, [
+                        E('span', { 'style': 'font-weight: bold;' }, _('Latency: ')),
+                        E('span', {}, latMs + ' ms'),
+                        E('span', { 'style': 'color: #888;' }, ' (' + _('Baseline') + ': ' + blMs + ' ms)')
+                    ]),
+                    E('div', {}, [
+                        E('span', { 'style': 'font-weight: bold;' }, _('Upload: ')),
+                        E('span', {}, ulMbps + ' / ' + baseUlMbps + ' Mbit/s'),
+                        E('span', { 'style': 'color: #888;' }, ' (' + (cur.ul_load_pct || 0) + '% ' + _('load') + ')')
+                    ]),
+                    E('div', {}, [
+                        E('span', { 'style': 'font-weight: bold;' }, _('Download: ')),
+                        E('span', {}, dlMbps + ' / ' + baseDlMbps + ' Mbit/s'),
+                        E('span', { 'style': 'color: #888;' }, ' (' + (cur.dl_load_pct || 0) + '% ' + _('load') + ')')
+                    ])
+                ])
+            ]);
+        }
+        
+        if (rawHistory.length < 2) return;
+        
+        // Extract time-series from history
+        // RAM: [ts, ul, dl, a_ul, a_dl, lat, bl, ulp, dlp]
+        // Flash: [ts, avg_ul, avg_dl, avg_a_ul, avg_a_dl, avg_lat, max_lat, avg_bl, avg_ulp, avg_dlp]
+        var latData = [], maxLatData = [], blData = [];
+        var ulRateData = [], ulAchData = [], dlRateData = [], dlAchData = [];
+        
+        for (var i = 0; i < rawHistory.length; i++) {
+            var h = rawHistory[i];
+            var t = h[0];
+            if (isFlash) {
+                latData.push([t, h[5] / 10]);     // avg latency
+                maxLatData.push([t, h[6] / 10]);   // max latency (spikes)
+                blData.push([t, h[7] / 10]);       // baseline at index 7 in flash
+                ulRateData.push([t, h[1]]);
+                ulAchData.push([t, h[3]]);
+                dlRateData.push([t, h[2]]);
+                dlAchData.push([t, h[4]]);
+            } else {
+                latData.push([t, h[5] / 10]);   // tenths ms -> ms
+                blData.push([t, h[6] / 10]);
+                ulRateData.push([t, h[1]]);
+                ulAchData.push([t, h[3]]);
+                dlRateData.push([t, h[2]]);
+                dlAchData.push([t, h[4]]);
+            }
+        }
+        
+        var decThrMs = cfg.decrease_threshold / 10;
+        var incThrMs = cfg.increase_threshold / 10;
+        var lastBl = blData.length > 0 ? blData[blData.length - 1][1] : 0;
+        
+        // Latency legend items (add max latency entry for flash data)
+        var latLegendItems = [
+            { label: _('Latency'), color: '#2196F3' },
+            { label: _('Baseline'), color: '#4CAF50', dashed: true },
+            { label: _('Dec. Threshold'), color: '#F44336', dashed: true },
+            { label: _('Inc. Threshold'), color: '#FF9800', dashed: true }
+        ];
+        if (isFlash) latLegendItems.splice(1, 0, { label: _('Latency (max)'), color: 'rgba(244, 67, 54, 0.5)' });
+        // Bandwidth legend items (shared for UL and DL)
+        var bwLegendItems = [
+            { label: _('Rate Limit'), color: '#2196F3' },
+            { label: _('Throughput'), color: '#4CAF50' },
+            { label: _('Base Rate'), color: '#9E9E9E', dashed: true },
+            { label: _('Max'), color: '#F44336', dashed: true },
+            { label: _('Min'), color: '#FF9800', dashed: true }
+        ];
+        
+        // Populate DOM legends
+        var latLegend = document.querySelector('.autorate-latency-legend');
+        if (latLegend) this.buildChartLegend(latLegend, latLegendItems);
+        var ulLegend = document.querySelector('.autorate-ul-legend');
+        if (ulLegend) this.buildChartLegend(ulLegend, bwLegendItems);
+        var dlLegend = document.querySelector('.autorate-dl-legend');
+        if (dlLegend) this.buildChartLegend(dlLegend, bwLegendItems);
+        
+        // Draw latency chart (include max_lat spike series for flash data)
+        var latCanvas = document.querySelector('.autorate-latency-canvas');
+        if (latCanvas && latCanvas.clientWidth > 0) {
+            var latSeries = [
+                { data: latData, color: '#2196F3', width: 1.5 },
+                { data: blData, color: '#4CAF50', dashed: true, width: 1 }
+            ];
+            if (isFlash && maxLatData.length > 0)
+                latSeries.splice(0, 0, { data: maxLatData, color: 'rgba(244, 67, 54, 0.5)', width: 1, fill: 'rgba(244, 67, 54, 0.08)' });
+            TimeSeriesChart.draw(latCanvas, {
+                series: latSeries,
+                hLines: [
+                    { value: lastBl + decThrMs, color: '#F44336', dashed: true, width: 1 },
+                    { value: lastBl + incThrMs, color: '#FF9800', dashed: true, width: 1 }
+                ],
+                yFmt: function(v) { return v.toFixed(1) + ' ms'; }
+            });
+        }
+        
+        // Draw upload bandwidth chart
+        var ulCanvas = document.querySelector('.autorate-ul-canvas');
+        if (ulCanvas && ulCanvas.clientWidth > 0) {
+            TimeSeriesChart.draw(ulCanvas, {
+                series: [
+                    { data: ulAchData, color: '#4CAF50', fill: 'rgba(76, 175, 80, 0.15)', width: 1 },
+                    { data: ulRateData, color: '#2196F3', width: 2 }
+                ],
+                hLines: [
+                    { value: cfg.base_ul, color: '#9E9E9E', dashed: true, width: 1 },
+                    { value: cfg.max_ul, color: '#F44336', dashed: true, width: 0.5 },
+                    { value: cfg.min_ul, color: '#FF9800', dashed: true, width: 0.5 }
+                ],
+                yFmt: function(v) { return v >= 1000 ? (v / 1000).toFixed(1) + ' Mbit/s' : v + ' kbit/s'; }
+            });
+        }
+        
+        // Draw download bandwidth chart
+        var dlCanvas = document.querySelector('.autorate-dl-canvas');
+        if (dlCanvas && dlCanvas.clientWidth > 0) {
+            TimeSeriesChart.draw(dlCanvas, {
+                series: [
+                    { data: dlAchData, color: '#4CAF50', fill: 'rgba(76, 175, 80, 0.15)', width: 1 },
+                    { data: dlRateData, color: '#2196F3', width: 2 }
+                ],
+                hLines: [
+                    { value: cfg.base_dl, color: '#9E9E9E', dashed: true, width: 1 },
+                    { value: cfg.max_dl, color: '#F44336', dashed: true, width: 0.5 },
+                    { value: cfg.min_dl, color: '#FF9800', dashed: true, width: 0.5 }
+                ],
+                yFmt: function(v) { return v >= 1000 ? (v / 1000).toFixed(1) + ' Mbit/s' : v + ' kbit/s'; }
+            });
+        }
     },
-
+    
     handleSaveApply: null,
     handleSave: null,
     handleReset: null
