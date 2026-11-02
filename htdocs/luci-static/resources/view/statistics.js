@@ -401,6 +401,200 @@ return view.extend({
         ]);
     },
 
+    // Create a unified single chart with interactive metric switching (Bytes, Packets, Drops)
+    // and stacked dual-tier bars for Pre-Proxy LAN + Post-Proxy WAN consolidation
+    createUnifiedSingleChart: function(id, title, metricsData, labels, colors, subMetricsData, initialMetric, metricChangeCallback) {
+        var activeMetric = initialMetric || 'bytes';
+        var container = E('div', { 
+            'class': 'chart-container', 
+            'id': id,
+            'style': 'background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 8px; padding: 18px; margin-bottom: 25px; display: flex; flex-direction: column; width: 100%;' 
+        });
+        
+        function renderChart(metric) {
+            activeMetric = metric;
+            dom.content(container, '');
+            
+            // Header Row: Title on Left, Metric Switcher Buttons on Right
+            var headerRow = E('div', { 
+                'style': 'display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;' 
+            }, [
+                E('h3', { 'style': 'margin: 0; font-size: 15px; font-weight: 600;' }, title),
+                E('div', { 'class': 'btn-group', 'style': 'display: inline-flex; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.15);' }, [
+                    E('button', { 
+                        'class': 'btn ' + (activeMetric === 'bytes' ? 'cbi-button-apply' : 'cbi-button-neutral'), 
+                        'style': 'padding: 4px 12px; font-size: 11px; font-weight: bold; cursor: pointer;',
+                        'click': function(ev) {
+                            ev.preventDefault();
+                            if (metricChangeCallback) metricChangeCallback('bytes');
+                            renderChart('bytes');
+                        }
+                    }, _('Traffic (Bytes)')),
+                    E('button', { 
+                        'class': 'btn ' + (activeMetric === 'packets' ? 'cbi-button-apply' : 'cbi-button-neutral'), 
+                        'style': 'padding: 4px 12px; font-size: 11px; font-weight: bold; cursor: pointer; border-left: 1px solid rgba(255,255,255,0.15); border-right: 1px solid rgba(255,255,255,0.15);',
+                        'click': function(ev) {
+                            ev.preventDefault();
+                            if (metricChangeCallback) metricChangeCallback('packets');
+                            renderChart('packets');
+                        }
+                    }, _('Packets')),
+                    E('button', { 
+                        'class': 'btn ' + (activeMetric === 'dropped' ? 'cbi-button-apply' : 'cbi-button-neutral'), 
+                        'style': 'padding: 4px 12px; font-size: 11px; font-weight: bold; cursor: pointer;',
+                        'click': function(ev) {
+                            ev.preventDefault();
+                            if (metricChangeCallback) metricChangeCallback('dropped');
+                            renderChart('dropped');
+                        }
+                    }, _('Dropped'))
+                ])
+            ]);
+            container.appendChild(headerRow);
+            
+            // Sub-Badge for Dual-CAKE Egress
+            if (subMetricsData) {
+                var subBadge = E('div', { 'style': 'display: flex; gap: 16px; margin-bottom: 10px; font-size: 11px; opacity: 0.85;' }, [
+                    E('div', { 'style': 'display: flex; align-items: center;' }, [
+                        E('span', { 'style': 'display: inline-block; width: 12px; height: 12px; background: currentColor; border-radius: 2px; margin-right: 5px; opacity: 0.95;' }),
+                        E('span', {}, _('After-Routing WAN (Solid / Post-Xray)'))
+                    ]),
+                    E('div', { 'style': 'display: flex; align-items: center;' }, [
+                        E('span', { 'style': 'display: inline-block; width: 12px; height: 12px; background: currentColor; border-radius: 2px; margin-right: 5px; opacity: 0.45;' }),
+                        E('span', {}, _('Pre-Routing LAN (Muted / Pre-Xray)'))
+                    ])
+                ]);
+                container.appendChild(subBadge);
+            }
+            
+            var data = (metricsData && metricsData[activeMetric]) ? metricsData[activeMetric] : [];
+            var subData = (subMetricsData && subMetricsData[activeMetric]) ? subMetricsData[activeMetric] : null;
+            
+            var chartData = E('div', { 
+                'class': 'chart-data', 
+                'style': 'display: flex; height: 170px; margin-top: 6px; align-items: flex-end; padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.12);' 
+            });
+            
+            if (data && data.length > 0) {
+                var totals = [];
+                for (var i = 0; i < data.length; i++) {
+                    var v1 = (typeof data[i] === 'number') ? data[i] : 0;
+                    var v2 = (subData && typeof subData[i] === 'number') ? subData[i] : 0;
+                    totals.push(v1 + v2);
+                }
+                var maxValue = Math.max.apply(null, totals);
+                
+                var formatNum = function(num) {
+                    if (activeMetric === 'bytes') {
+                        if (num >= 1073741824) return (num / 1073741824).toFixed(1) + 'G';
+                        if (num >= 1048576) return (num / 1048576).toFixed(1) + 'M';
+                        if (num >= 1024) return (num / 1024).toFixed(1) + 'K';
+                        return String(num) + 'B';
+                    } else {
+                        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+                        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+                        return String(num);
+                    }
+                };
+
+                for (var i = 0; i < data.length; i++) {
+                    var valWan = (typeof data[i] === 'number') ? data[i] : 0;
+                    var valLan = (subData && typeof subData[i] === 'number') ? subData[i] : 0;
+                    var valTotal = valWan + valLan;
+                    
+                    var barHeight = 2;
+                    if (valTotal > 0 && maxValue > 0) {
+                        var ratio = valTotal / maxValue;
+                        barHeight = Math.max(8, Math.round(Math.sqrt(ratio) * 130));
+                    }
+                    var color = colors ? colors[i % colors.length] : '#0088cc';
+                    var fullLabel = labels ? labels[i] : ('Tin ' + i);
+                    var shortTag = 'T' + i;
+                    
+                    var formattedVal = formatNum(valTotal);
+                    var tooltipText = fullLabel + ' : ' + formattedVal;
+                    if (subData && (valWan > 0 || valLan > 0)) {
+                        tooltipText += ' (WAN: ' + formatNum(valWan) + ' | LAN: ' + formatNum(valLan) + ')';
+                    }
+                    
+                    var barContainer = E('div', { 
+                        'style': 'flex: 1; text-align: center; padding: 0 4px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; cursor: pointer;',
+                        'title': tooltipText
+                    });
+                    
+                    var valueLabel = E('div', { 
+                        'style': 'font-size: 11px; margin-bottom: 4px; font-weight: 600; opacity: ' + (valTotal > 0 ? '1' : '0.35') + ';' 
+                    }, formattedVal);
+                    
+                    var bar = E('div', { 
+                        'style': 'width: 70%; max-width: 38px; min-width: 14px; height: ' + barHeight + 'px; border-radius: 4px 4px 0 0; display: flex; flex-direction: column-reverse; overflow: hidden; opacity: ' + (valTotal > 0 ? '0.95' : '0.25') + '; transition: height 0.3s ease;' 
+                    });
+                    
+                    if (subData && valTotal > 0 && (valWan > 0 || valLan > 0)) {
+                        var wanHeight = Math.round(barHeight * (valWan / valTotal));
+                        var lanHeight = barHeight - wanHeight;
+                        
+                        if (wanHeight > 0) {
+                            bar.appendChild(E('div', {
+                                'style': 'width: 100%; height: ' + wanHeight + 'px; background-color: ' + color + '; opacity: 0.95;',
+                                'title': 'WAN: ' + formatNum(valWan)
+                            }));
+                        }
+                        if (lanHeight > 0) {
+                            bar.appendChild(E('div', {
+                                'style': 'width: 100%; height: ' + lanHeight + 'px; background-color: ' + color + '; opacity: 0.45; border-bottom: ' + (wanHeight > 0 ? '1px solid rgba(255,255,255,0.3)' : 'none') + ';',
+                                'title': 'LAN Pre-Proxy: ' + formatNum(valLan)
+                            }));
+                        }
+                    } else {
+                        bar.style.backgroundColor = color;
+                    }
+                    
+                    var tagBadge = E('div', { 
+                        'style': 'font-size: 11px; font-weight: bold; margin-top: 6px; color: ' + color + ';' 
+                    }, shortTag);
+                    
+                    barContainer.appendChild(valueLabel);
+                    barContainer.appendChild(bar);
+                    barContainer.appendChild(tagBadge);
+                    chartData.appendChild(barContainer);
+                }
+                
+                container.appendChild(chartData);
+                
+                // Wrapped, clean legend grid underneath bars
+                var legendContainer = E('div', { 
+                    'style': 'display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; margin-top: 14px; font-size: 11px;' 
+                });
+                
+                for (var j = 0; j < data.length; j++) {
+                    var c = colors ? colors[j % colors.length] : '#0088cc';
+                    var lbl = labels ? labels[j] : ('Tin ' + j);
+                    var cleanName = lbl.replace(/^Tin\s*\d+\s*:\s*/i, '');
+                    
+                    var legendItem = E('div', { 
+                        'style': 'display: inline-flex; align-items: center; white-space: nowrap;' 
+                    }, [
+                        E('span', { 
+                            'style': 'display: inline-block; width: 10px; height: 10px; border-radius: 3px; background-color: ' + c + '; margin-right: 5px; flex-shrink: 0;' 
+                        }),
+                        E('span', { 'style': 'opacity: 0.88;' }, 'T' + j + ': ' + cleanName)
+                    ]);
+                    legendContainer.appendChild(legendItem);
+                }
+                
+                container.appendChild(legendContainer);
+            } else {
+                chartData.appendChild(E('div', { 'style': 'width: 100%; text-align: center; padding-top: 60px;' }, 
+                                     _('No data available')));
+                container.appendChild(chartData);
+            }
+        }
+        
+        renderChart(activeMetric);
+        return container;
+    },
+
     // Create an elegant, responsive chart with zero label overlap, adaptive sqrt scaling,
     // and optional stacked dual-tier bars for Pre-Proxy LAN + Post-Proxy WAN consolidation
     createChart: function(id, title, data, labels, colors, subData, subLabel) {
@@ -604,6 +798,8 @@ return view.extend({
             var wanPktsArr = [];
             var lanPktsArr = [];
             var totalPktsArr = [];
+            var wanDropsArr = [];
+            var lanDropsArr = [];
             var totalDropsArr = [];
             var tinLabels = [];
             
@@ -616,9 +812,11 @@ return view.extend({
                 var wanBytes = wanTin.sent_bytes || 0;
                 var wanPkts = wanTin.sent_packets || 0;
                 
+                var lanDrops = lanTin.drops || 0;
+                var wanDrops = wanTin.drops || 0;
                 var totalBytes = lanBytes + wanBytes;
                 var totalPkts = lanPkts + wanPkts;
-                var totalDrops = (lanTin.drops || 0) + (wanTin.drops || 0);
+                var totalDrops = lanDrops + wanDrops;
                 var totalEcn = (lanTin.ecn_mark || 0) + (wanTin.ecn_mark || 0);
                 
                 var thrRate = wanTin.threshold_rate || lanTin.threshold_rate || 0;
@@ -633,6 +831,8 @@ return view.extend({
                 lanPktsArr.push(lanPkts);
                 totalPktsArr.push(totalPkts);
                 
+                wanDropsArr.push(wanDrops);
+                lanDropsArr.push(lanDrops);
                 totalDropsArr.push(totalDrops);
                 tinLabels.push(getTinName(index, diffservMode));
                 
@@ -695,34 +895,18 @@ return view.extend({
             
             var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
             
-            // Unified Egress Charts with Pre-Routing and WAN After-Routing stacked
-            result.charts.push(self.createChart(
-                'cake-egress-bytes',
-                _('Egress Bytes Sent by Tin (Pre-Proxy LAN + Post-Proxy WAN)'),
-                wanBytesArr,
+            // Single unified interactive chart for Egress (Upload & Pre-Proxy Merged)
+            result.egressChart = self.createUnifiedSingleChart(
+                'cake-egress-unified',
+                _('CAKE Egress Flow Distribution (Pre-Routing LAN + After-Routing WAN)'),
+                { bytes: wanBytesArr, packets: wanPktsArr, dropped: wanDropsArr },
                 tinLabels,
                 cakeColors,
-                isDualCake ? lanBytesArr : null,
-                _('Pre-Proxy LAN')
-            ));
-            
-            result.charts.push(self.createChart(
-                'cake-egress-packets',
-                _('Egress Packets Sent by Tin (Pre-Proxy LAN + Post-Proxy WAN)'),
-                wanPktsArr,
-                tinLabels,
-                cakeColors,
-                isDualCake ? lanPktsArr : null,
-                _('Pre-Proxy LAN')
-            ));
-            
-            result.charts.push(self.createChart(
-                'cake-egress-dropped',
-                _('Egress Dropped Packets by Tin'),
-                totalDropsArr,
-                tinLabels,
-                cakeColors
-            ));
+                isDualCake ? { bytes: lanBytesArr, packets: lanPktsArr, dropped: lanDropsArr } : null,
+                self.activeEgressMetric || 'bytes',
+                function(newMetric) { self.activeEgressMetric = newMetric; }
+            );
+            result.charts.push(result.egressChart);
         }
         
         // 2. Process CAKE Ingress Statistics
@@ -769,29 +953,19 @@ return view.extend({
                 ));
                 
                 var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
-                result.charts.push(self.createChart(
-                    'cake-ingress-bytes',
-                    _('Ingress Bytes Received by Tin'),
-                    sentBytesArr,
-                    tinLabels,
-                    cakeColors
-                ));
                 
-                result.charts.push(self.createChart(
-                    'cake-ingress-packets',
-                    _('Ingress Packets Received by Tin'),
-                    sentPktsArr,
+                // Single unified interactive chart for Ingress (Download)
+                result.ingressChart = self.createUnifiedSingleChart(
+                    'cake-ingress-unified',
+                    _('CAKE Ingress Flow Distribution (WAN Ingress)'),
+                    { bytes: sentBytesArr, packets: sentPktsArr, dropped: dropsArr },
                     tinLabels,
-                    cakeColors
-                ));
-                
-                result.charts.push(self.createChart(
-                    'cake-ingress-dropped',
-                    _('Ingress Dropped Packets by Tin'),
-                    dropsArr,
-                    tinLabels,
-                    cakeColors
-                ));
+                    cakeColors,
+                    null,
+                    self.activeIngressMetric || 'bytes',
+                    function(newMetric) { self.activeIngressMetric = newMetric; }
+                );
+                result.charts.push(result.ingressChart);
             }
         }
         
@@ -1894,31 +2068,23 @@ return view.extend({
                         }
                     }
 
-                    // 1. Egress (Upload) Tab Content: Unified CAKE Egress + Pre-Proxy LAN Shaper
+                    // 1. Egress (Upload) Tab Content: Unified CAKE Egress Table + Single Full-Width Unified Chart
                     if (tabContents[0]) {
                         if (egressTable) tabContents[0].appendChild(egressTable);
-                        if (egressCharts.length > 0) {
-                            var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
-                            var egressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
-                            });
-                            egressCharts.forEach(function(chart) { egressGrid.appendChild(chart); });
-                            egressChartsContainer.appendChild(egressGrid);
-                            tabContents[0].appendChild(egressChartsContainer);
+                        if (cakeResults.egressChart) {
+                            tabContents[0].appendChild(cakeResults.egressChart);
+                        } else if (egressCharts.length > 0) {
+                            tabContents[0].appendChild(egressCharts[0]);
                         }
                     }
                     
-                    // 2. Ingress (Download) Tab Content: WAN Ingress
+                    // 2. Ingress (Download) Tab Content: Unified CAKE Ingress Table + Single Full-Width Unified Chart
                     if (tabContents[1]) {
                         if (ingressTable) tabContents[1].appendChild(ingressTable);
-                        if (ingressCharts.length > 0) {
-                            var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
-                            var ingressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
-                            });
-                            ingressCharts.forEach(function(chart) { ingressGrid.appendChild(chart); });
-                            ingressChartsContainer.appendChild(ingressGrid);
-                            tabContents[1].appendChild(ingressChartsContainer);
+                        if (cakeResults.ingressChart) {
+                            tabContents[1].appendChild(cakeResults.ingressChart);
+                        } else if (ingressCharts.length > 0) {
+                            tabContents[1].appendChild(ingressCharts[0]);
                         }
                     }
                 }
