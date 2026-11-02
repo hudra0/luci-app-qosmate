@@ -39,7 +39,19 @@ var dscpToString = function(mark) {
         48: 'CS6',
         56: 'CS7'
     };
-    return dscpMap[dscp] || dscp.toString();
+    var name = dscpMap[dscp] || dscp.toString();
+    var dscpToTin = {
+        'CS7': 'Tin 7', 'CS6': 'Tin 7',
+        'EF': 'Tin 6', 'VA': 'Tin 6', 'CS5': 'Tin 6', 'CS4': 'Tin 6',
+        'CS2': 'Tin 5',
+        'AF21': 'Tin 4', 'AF22': 'Tin 4', 'AF23': 'Tin 4',
+        'CS3': 'Tin 3', 'AF41': 'Tin 3', 'AF42': 'Tin 3', 'AF43': 'Tin 3',
+        'AF31': 'Tin 3', 'AF32': 'Tin 3', 'AF33': 'Tin 3',
+        'CS0': 'Tin 2',
+        'AF11': 'Tin 1', 'AF12': 'Tin 1', 'AF13': 'Tin 1', 'CS1': 'Tin 1',
+        'LE': 'Tin 0'
+    };
+    return dscpToTin[name] ? (name + ' (' + dscpToTin[name] + ')') : name;
 };
 
 var formatSize = function(bytes) {
