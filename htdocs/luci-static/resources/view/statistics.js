@@ -9,7 +9,10 @@
 'require uci';
 
 // ==============================================================================
-// QoSmate Modern Statistics Dashboard (Atomic Design & UI/UX Pro Max)
+// QoSmate Next-Gen Real-Time Telemetry & Analytics Dashboard
+// Architecture: Atomic Design (Tokens -> Atoms -> Molecules -> Organisms)
+// Features: Dual-CAKE Pre/Post Proxy Pipeline, Diffserv8 RFC 8290 Engine,
+//           Multi-Stream Throughput History, Bufferbloat Gauges, Live Rules.
 // ==============================================================================
 
 // RPC declarations
@@ -44,7 +47,7 @@ var callQoSmateAutorateStats = rpc.declare({
 });
 
 // ==============================================================================
-// Design Tokens & Helpers
+// Design Tokens & Formatting Helpers
 // ==============================================================================
 
 var formatSize = function(bytes) {
@@ -75,21 +78,16 @@ var formatTime = function(microseconds) {
     return microseconds + ' µs';
 };
 
-var bytesToKbits = function(bytes) {
-    if (!bytes) return '0.00';
-    return (bytes * 8 / 1000).toFixed(2);
-};
-
-// RFC 8290 CAKE Diffserv8 Metadata
+// RFC 8290 CAKE Diffserv8 Specifications (Linux Kernel sch_cake.c alignment)
 var DIFFSERV8_META = [
-    { id: 0, name: 'Background', dscp: 'CS1 / LE', priority: 'Tin 0 (Lowest)', color: '#64748b', icon: '⏳', desc: 'Bulk P2P BitTorrent, low priority scavenger traffic' },
-    { id: 1, name: 'High Throughput Bulk', dscp: 'CS1 / AF11', priority: 'Tin 1', color: '#475569', icon: '📦', desc: 'Heavy sustained TCP downloads (>750MB), bulk file transfers' },
-    { id: 2, name: 'Best Effort', dscp: 'CS0 / General', priority: 'Tin 2 (Default)', color: '#16a34a', icon: '🌐', desc: 'General household web browsing, standard HTTPS traffic' },
-    { id: 3, name: 'Streaming & Video', dscp: 'AF41 / AF42 / CS3', priority: 'Tin 3', color: '#ea580c', icon: '📺', desc: 'RTMP live streaming, video call media STUN (3478-3481)' },
-    { id: 4, name: 'Low-Latency Homelab', dscp: 'AF21 / AF22', priority: 'Tin 4', color: '#0d9488', icon: '☁️', desc: 'Cloudflare Argo Tunnel (:7844), homelab web hosting (:8000, :8088)' },
-    { id: 5, name: 'Voice & Interactive', dscp: 'EF / CS2', priority: 'Tin 5', color: '#2563eb', icon: '🎙️', desc: 'Discord voice, WebRTC (50000-65535), VoIP SIP, SSH (22)' },
-    { id: 6, name: 'Realtime Gaming', dscp: 'CS5 / CS4 / EF', priority: 'Tin 6 (High)', color: '#dc2626', icon: '🎮', desc: 'PC & LAN Gaming UDP (!80/443), CS2, Warzone, Battlefield, Rivals' },
-    { id: 7, name: 'Network Control', dscp: 'CS6 / CS7', priority: 'Tin 7 (Highest)', color: '#7c3aed', icon: '👑', desc: 'DNS (53), DoH/DoT (853), NTP (123), ICMP ping, zero-jitter control' }
+    { id: 0, name: 'Background / Scavenger', dscp: 'LE', priority: 'Tin 0 (Lowest)', color: '#64748b', icon: '⏳', desc: 'Low Effort background traffic, scavenger downloads' },
+    { id: 1, name: 'High Throughput Bulk', dscp: 'CS1 / AF11-AF13', priority: 'Tin 1', color: '#475569', icon: '📦', desc: 'Bulk P2P BitTorrent, large sustained file downloads (>750MB)' },
+    { id: 2, name: 'Best Effort', dscp: 'CS0 / Default', priority: 'Tin 2 (Standard)', color: '#16a34a', icon: '🌐', desc: 'Standard unclassified internet traffic, general HTTPS browsing' },
+    { id: 3, name: 'Streaming & Video', dscp: 'AF31-AF33 / AF41-AF43 / CS3', priority: 'Tin 3', color: '#ea580c', icon: '📺', desc: 'RTMP live streams, video call media STUN, TCP upgrade bursts' },
+    { id: 4, name: 'Low-Latency Homelab', dscp: 'AF21-AF23', priority: 'Tin 4', color: '#0d9488', icon: '☁️', desc: 'Cloudflare Argo Tunnel (:7844), homelab web hosting (:8000, :8088)' },
+    { id: 5, name: 'Interactive Shell', dscp: 'CS2', priority: 'Tin 5', color: '#2563eb', icon: '💻', desc: 'SSH remote management (:22), interactive shell sessions' },
+    { id: 6, name: 'Realtime Gaming & Voice', dscp: 'CS4 / CS5 / EF / VA', priority: 'Tin 6 (High)', color: '#dc2626', icon: '🎮', desc: 'PC & LAN Gaming UDP (!80/443), Discord voice, WebRTC, SIP, CS2, Warzone' },
+    { id: 7, name: 'Network Control', dscp: 'CS6 / CS7', priority: 'Tin 7 (Highest)', color: '#7c3aed', icon: '👑', desc: 'DNS (:53), DoH/DoT (:853), NTP (:123), ICMP ping, routing control' }
 ];
 
 var DSCP_COLOR_MAP = {
@@ -110,11 +108,12 @@ var getDscpBadgeColor = function(dscpClass) {
 };
 
 // ==============================================================================
-// Lightweight Canvas TimeSeriesChart (Autorate & Trends)
+// Real-Time Canvas Multi-Stream Throughput Chart (Organism)
 // ==============================================================================
 
-var TimeSeriesChart = {
-    draw: function(canvas, config) {
+var LiveTrafficChart = {
+    draw: function(canvas, history) {
+        if (!canvas || !canvas.getContext) return;
         var ctx = canvas.getContext('2d');
         var dpr = window.devicePixelRatio || 1;
         var w = canvas.clientWidth;
@@ -124,173 +123,180 @@ var TimeSeriesChart = {
         canvas.width = w * dpr;
         canvas.height = h * dpr;
         ctx.scale(dpr, dpr);
-
         ctx.clearRect(0, 0, w, h);
 
-        var pad = { top: 15, right: 15, bottom: 25, left: 65 };
+        var pad = { top: 18, right: 20, bottom: 25, left: 75 };
         var cw = w - pad.left - pad.right;
         var ch = h - pad.top - pad.bottom;
         if (cw <= 0 || ch <= 0) return;
 
-        var allPts = [];
-        (config.series || []).forEach(function(s) {
-            if (s.data) allPts = allPts.concat(s.data);
-        });
-
-        if (allPts.length < 2) {
+        if (!history || history.length < 2) {
             ctx.fillStyle = '#94a3b8';
             ctx.font = '12px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(_('Collecting telemetry data...'), w / 2, h / 2);
+            ctx.fillText(_('Accumulating real-time telemetry stream...'), w / 2, h / 2);
             return;
         }
 
-        var xMin = Infinity, xMax = -Infinity;
-        var yMin = Infinity, yMax = -Infinity;
-
-        allPts.forEach(function(pt) {
-            if (pt[0] < xMin) xMin = pt[0];
-            if (pt[0] > xMax) xMax = pt[0];
-            if (pt[1] < yMin) yMin = pt[1];
-            if (pt[1] > yMax) yMax = pt[1];
+        // Find maximum rate for auto-scaling
+        var maxRate = 0;
+        history.forEach(function(s) {
+            var m = Math.max(s.egressBps || 0, s.ingressBps || 0, s.lanBps || 0, s.cfBps || 0);
+            if (m > maxRate) maxRate = m;
         });
+        if (maxRate <= 0) maxRate = 125000; // default 1 Mbps baseline
+        maxRate = maxRate * 1.15; // 15% headroom
 
-        (config.hLines || []).forEach(function(hl) {
-            if (hl.value < yMin) yMin = hl.value;
-            if (hl.value > yMax) yMax = hl.value;
-        });
+        var n = history.length;
+        var xS = function(idx) { return pad.left + (idx / (n - 1)) * cw; };
+        var yS = function(val) { return pad.top + ch - (Math.min(val, maxRate) / maxRate) * ch; };
 
-        if (yMin === yMax) { yMin -= 1; yMax += 1; }
-        if (xMin === xMax) { xMin -= 1; xMax += 1; }
-        yMin = Math.max(0, yMin * 0.95);
-        yMax = yMax * 1.05;
-
-        var yTicks = this._ticks(yMin, yMax, 5);
-        if (yTicks.length > 0) {
-            yMin = Math.min(yMin, yTicks[0]);
-            yMax = Math.max(yMax, yTicks[yTicks.length - 1]);
-        }
-
-        var xS = function(x) { return pad.left + (x - xMin) / (xMax - xMin) * cw; };
-        var yS = function(y) { return pad.top + ch - (y - yMin) / (yMax - yMin) * ch; };
-
-        ctx.font = '10px sans-serif';
+        // Grid lines & Y-axis labels
+        ctx.strokeStyle = '#e2e8f0';
+        ctx.lineWidth = 0.5;
+        ctx.font = '10px -apple-system, sans-serif';
         ctx.fillStyle = '#64748b';
-
-        // Y Grid
         ctx.textAlign = 'right';
-        yTicks.forEach(function(v) {
-            var y = yS(v);
-            ctx.strokeStyle = '#e2e8f0';
-            ctx.lineWidth = 0.5;
+
+        var ySteps = 4;
+        for (var step = 0; step <= ySteps; step++) {
+            var val = (maxRate / ySteps) * step;
+            var y = yS(val);
             ctx.beginPath();
             ctx.moveTo(pad.left, y);
             ctx.lineTo(pad.left + cw, y);
             ctx.stroke();
-            ctx.fillText(config.yFmt ? config.yFmt(v) : String(v), pad.left - 6, y + 3);
-        });
+            ctx.fillText(formatRate(val), pad.left - 6, y + 3);
+        }
 
-        // X Grid
+        // Time markers on X-axis
         ctx.textAlign = 'center';
-        this._timeTicks(xMin, xMax, 6).forEach(function(v) {
-            var x = xS(v);
-            ctx.strokeStyle = '#e2e8f0';
-            ctx.lineWidth = 0.5;
-            ctx.beginPath();
-            ctx.moveTo(x, pad.top);
-            ctx.lineTo(x, pad.top + ch);
-            ctx.stroke();
-            var ago = Math.round(xMax - v);
-            var label = ago <= 0 ? 'now' : (ago < 60 ? '-' + ago + 's' : (ago < 3600 ? '-' + Math.round(ago / 60) + 'm' : '-' + (ago / 3600).toFixed(1) + 'h'));
-            ctx.fillText(label, x, pad.top + ch + 15);
+        var tLabels = [
+            { idx: 0, text: '-' + Math.round(n * 2) + 's' },
+            { idx: Math.floor(n / 2), text: '-' + Math.round(n) + 's' },
+            { idx: n - 1, text: 'now' }
+        ];
+        tLabels.forEach(function(lbl) {
+            var x = xS(lbl.idx);
+            ctx.fillText(lbl.text, x, pad.top + ch + 15);
         });
 
-        // Border
-        ctx.strokeStyle = '#cbd5e1';
-        ctx.lineWidth = 1;
-        ctx.strokeRect(pad.left, pad.top, cw, ch);
-
+        // Clip area for graph
         ctx.save();
         ctx.beginPath();
         ctx.rect(pad.left, pad.top, cw, ch);
         ctx.clip();
 
-        // Horizontal lines
-        (config.hLines || []).forEach(function(hl) {
-            ctx.strokeStyle = hl.color || '#94a3b8';
-            ctx.lineWidth = hl.width || 1;
-            if (hl.dashed) ctx.setLineDash([4, 3]);
+        // Helper to draw smooth series
+        var drawSeries = function(accessor, strokeColor, fillColor) {
             ctx.beginPath();
-            var y = yS(hl.value);
-            ctx.moveTo(pad.left, y);
-            ctx.lineTo(pad.left + cw, y);
-            ctx.stroke();
-            ctx.setLineDash([]);
-        });
-
-        // Series
-        (config.series || []).forEach(function(s) {
-            if (!s.data || s.data.length < 2) return;
-            ctx.strokeStyle = s.color || '#2563eb';
-            ctx.lineWidth = s.width || 2;
-            if (s.dashed) ctx.setLineDash([4, 3]);
-
-            if (s.fill) {
-                ctx.fillStyle = s.fill;
-                ctx.beginPath();
-                ctx.moveTo(xS(s.data[0][0]), yS(yMin));
-                s.data.forEach(function(pt) { ctx.lineTo(xS(pt[0]), yS(pt[1])); });
-                ctx.lineTo(xS(s.data[s.data.length - 1][0]), yS(yMin));
+            ctx.moveTo(xS(0), yS(accessor(history[0])));
+            for (var i = 1; i < n; i++) {
+                ctx.lineTo(xS(i), yS(accessor(history[i])));
+            }
+            if (fillColor) {
+                ctx.lineTo(xS(n - 1), yS(0));
+                ctx.lineTo(xS(0), yS(0));
                 ctx.closePath();
+                ctx.fillStyle = fillColor;
                 ctx.fill();
             }
-
             ctx.beginPath();
-            ctx.moveTo(xS(s.data[0][0]), yS(s.data[0][1]));
-            for (var i = 1; i < s.data.length; i++) {
-                ctx.lineTo(xS(s.data[i][0]), yS(s.data[i][1]));
+            ctx.moveTo(xS(0), yS(accessor(history[0])));
+            for (var j = 1; j < n; j++) {
+                ctx.lineTo(xS(j), yS(accessor(history[j])));
             }
+            ctx.strokeStyle = strokeColor;
+            ctx.lineWidth = 2;
             ctx.stroke();
-            ctx.setLineDash([]);
-        });
+        };
+
+        // Draw Ingress (Download)
+        drawSeries(function(d) { return d.ingressBps || 0; }, '#16a34a', 'rgba(22, 163, 74, 0.08)');
+        // Draw Pre-Proxy LAN (br-lan Ingress)
+        drawSeries(function(d) { return d.lanBps || 0; }, '#0d9488', 'rgba(13, 148, 136, 0.06)');
+        // Draw Egress (Upload)
+        drawSeries(function(d) { return d.egressBps || 0; }, '#2563eb', 'rgba(37, 99, 235, 0.08)');
+        // Draw Cloudflare & Homelab Web
+        drawSeries(function(d) { return d.cfBps || 0; }, '#7c3aed', 'rgba(124, 58, 237, 0.12)');
 
         ctx.restore();
-    },
 
-    _ticks: function(min, max, count) {
-        var range = max - min;
-        if (range <= 0) return [min];
-        var rough = range / count;
-        var mag = Math.pow(10, Math.floor(Math.log10(rough)));
-        var n = rough / mag;
-        var step = n <= 1.5 ? mag : n <= 3.5 ? 2 * mag : n <= 7.5 ? 5 * mag : 10 * mag;
-        var ticks = [];
-        for (var v = Math.ceil(min / step) * step; v <= max; v += step) {
-            ticks.push(Math.round(v * 1000) / 1000);
-        }
-        return ticks;
-    },
-
-    _timeTicks: function(min, max, count) {
-        var span = max - min;
-        if (span <= 0) return [max];
-        var steps = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 14400, 28800, 86400];
-        var ideal = span / count;
-        var step = steps[steps.length - 1];
-        for (var i = 0; i < steps.length; i++) {
-            if (steps[i] >= ideal) { step = steps[i]; break; }
-        }
-        var ticks = [];
-        var maxAgo = Math.floor(span / step) * step;
-        for (var ago = maxAgo; ago >= 0; ago -= step) {
-            ticks.push(max - ago);
-        }
-        return ticks;
+        // Border
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(pad.left, pad.top, cw, ch);
     }
 };
 
 // ==============================================================================
-// LuCI View Object
+// Diffserv8 Traffic Distribution Donut Chart (Organism)
+// ==============================================================================
+
+var TinDonutChart = {
+    draw: function(canvas, tins, totalBytes) {
+        if (!canvas || !canvas.getContext) return;
+        var ctx = canvas.getContext('2d');
+        var dpr = window.devicePixelRatio || 1;
+        var w = canvas.clientWidth;
+        var h = canvas.clientHeight;
+        if (w <= 0 || h <= 0) return;
+
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, w, h);
+
+        var cx = w / 2;
+        var cy = h / 2;
+        var radius = Math.min(cx, cy) - 10;
+        var innerRadius = radius * 0.62;
+
+        if (!totalBytes || totalBytes <= 0 || !tins || tins.length === 0) {
+            ctx.fillStyle = '#cbd5e1';
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+            ctx.arc(cx, cy, innerRadius, 2 * Math.PI, 0, true);
+            ctx.fill();
+
+            ctx.fillStyle = '#64748b';
+            ctx.font = '11px -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(_('Zero bytes'), cx, cy + 4);
+            return;
+        }
+
+        var startAngle = -Math.PI / 2;
+        for (var i = 7; i >= 0; i--) {
+            var sent = (tins[i] && tins[i].sent_bytes) ? tins[i].sent_bytes : 0;
+            if (sent <= 0) continue;
+            var sliceAngle = (sent / totalBytes) * (2 * Math.PI);
+            var endAngle = startAngle + sliceAngle;
+            var color = DIFFSERV8_META[i].color;
+
+            ctx.beginPath();
+            ctx.arc(cx, cy, radius, startAngle, endAngle);
+            ctx.arc(cx, cy, innerRadius, endAngle, startAngle, true);
+            ctx.closePath();
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            startAngle = endAngle;
+        }
+
+        // Center cutout info
+        ctx.fillStyle = 'var(--color-text-primary, #0f172a)';
+        ctx.font = 'bold 12px -apple-system, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(formatSize(totalBytes), cx, cy - 2);
+        ctx.font = '10px -apple-system, sans-serif';
+        ctx.fillStyle = '#64748b';
+        ctx.fillText(_('Total Volume'), cx, cy + 12);
+    }
+};
+
+// ==============================================================================
+// LuCI Modern View Architecture
 // ==============================================================================
 
 return view.extend({
@@ -301,7 +307,9 @@ return view.extend({
     lastPollTime: 0,
     lastStats: null,
     prevRulePackets: {},
-    autorateTimeRange: '60m',
+    trafficHistory: [],
+    matrixView: 'egress',
+    maxHistoryPoints: 30,
 
     load: function() {
         return Promise.all([
@@ -327,7 +335,7 @@ return view.extend({
                 view.updateContent(data);
                 return data;
             }).catch(function(err) {
-                console.error('QoSmate telemetry poll error:', err);
+                console.error('QoSmate poll error:', err);
                 return null;
             });
         };
@@ -335,23 +343,22 @@ return view.extend({
 
     render: function(data) {
         var view = this;
-        var qosStats = data[0];
-        var ruleStats = data[3];
-        var autorateStats = data[4];
+        var qosStats = data[0] || {};
 
         view.lastStats = qosStats;
         view.lastPollTime = Date.now();
 
         var mainContainer = E('div', { 'class': 'cbi-map qosmate-dashboard-root', 'style': 'max-width: 100%; overflow-x: hidden;' });
 
-        // Inject Scoped Atomic Styles
+        // Scoped Atomic Design System Tokens
         var styleEl = E('style', {}, [
             '.qosmate-dashboard-root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--color-text-primary, #0f172a); }',
             '.qm-grid { display: grid; gap: 1rem; margin-bottom: 1.25rem; }',
             '.qm-grid-4 { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }',
             '.qm-grid-2 { grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); }',
-            '.qm-card { background: var(--background-color-card, #ffffff); border: 1px solid var(--border-color-medium, #e2e8f0); border-radius: 10px; padding: 1.1rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: transform 0.15s ease, box-shadow 0.15s ease; }',
-            '.qm-card:hover { box-shadow: 0 4px 8px rgba(0,0,0,0.06); }',
+            '.qm-grid-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }',
+            '.qm-card { background: var(--background-color-card, #ffffff); border: 1px solid var(--border-color-medium, #e2e8f0); border-radius: 12px; padding: 1.15rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04); transition: transform 0.15s ease, box-shadow 0.15s ease; }',
+            '.qm-card:hover { box-shadow: 0 4px 10px rgba(0,0,0,0.06); }',
             '.qm-card-title { font-size: 0.82rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-text-muted, #64748b); margin-bottom: 0.4rem; display: flex; align-items: center; justify-content: space-between; }',
             '.qm-card-value { font-size: 1.55rem; font-weight: 700; color: var(--color-text-primary, #0f172a); line-height: 1.2; margin-bottom: 0.25rem; }',
             '.qm-card-sub { font-size: 0.8rem; color: var(--color-text-muted, #64748b); }',
@@ -369,23 +376,26 @@ return view.extend({
             '.qm-table td { padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--border-color-medium, #e2e8f0); vertical-align: middle; }',
             '.qm-table tr:last-child td { border-bottom: none; }',
             '.qm-table tr:hover td { background: rgba(0,0,0,0.015); }',
-            '.qm-search { padding: 0.45rem 0.85rem; border: 1px solid var(--border-color-medium, #cbd5e1); border-radius: 6px; font-size: 0.84rem; width: 260px; outline: none; }',
+            '.qm-search { padding: 0.45rem 0.85rem; border: 1px solid var(--border-color-medium, #cbd5e1); border-radius: 6px; font-size: 0.84rem; width: 280px; outline: none; }',
             '.qm-search:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }',
             '.qm-pulse { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 0 rgba(34,197,94,0.7); animation: qm-pulse-anim 1.5s infinite; }',
             '@keyframes qm-pulse-anim { 0% { box-shadow: 0 0 0 0 rgba(34,197,94,0.7); } 70% { box-shadow: 0 0 0 6px rgba(34,197,94,0); } 100% { box-shadow: 0 0 0 0 rgba(34,197,94,0); } }',
+            '.qm-pipeline-strip { display: flex; align-items: center; justify-content: space-between; overflow-x: auto; gap: 0.5rem; padding: 0.85rem 1rem; background: var(--background-color-card, #ffffff); border: 1px solid var(--border-color-medium, #e2e8f0); border-radius: 10px; margin-bottom: 1.25rem; font-size: 0.78rem; -webkit-overflow-scrolling: touch; }',
+            '.qm-pipeline-node { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 130px; }',
+            '.qm-pipeline-arrow { font-size: 1.1rem; color: #94a3b8; }',
             '@media (max-width: 640px) { .qm-card-value { font-size: 1.3rem; } .qm-tab-btn { padding: 0.4rem 0.65rem; font-size: 0.8rem; } .qm-search { width: 100%; } }'
         ].join('\n'));
         mainContainer.appendChild(styleEl);
 
-        // Header Top Bar: Status + Refresh Controls
-        var topBar = E('div', { 'style': 'display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.8rem; margin-bottom: 1.25rem; background: var(--background-color-card, #ffffff); border: 1px solid var(--border-color-medium, #e2e8f0); border-radius: 10px; padding: 0.8rem 1.1rem;' }, [
+        // Header Top Bar: Status + Telemetry Controls
+        var topBar = E('div', { 'style': 'display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.8rem; margin-bottom: 1.25rem; background: var(--background-color-card, #ffffff); border: 1px solid var(--border-color-medium, #e2e8f0); border-radius: 12px; padding: 0.85rem 1.2rem;' }, [
             E('div', { 'style': 'display: flex; align-items: center; gap: 0.75rem;' }, [
-                E('div', { 'style': 'width: 38px; height: 38px; border-radius: 8px; background: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; color: #fff;' }, '⚡'),
+                E('div', { 'style': 'width: 40px; height: 40px; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #1d4ed8); display: flex; align-items: center; justify-content: center; font-size: 1.35rem; color: #fff; box-shadow: 0 2px 6px rgba(37,99,235,0.3);' }, '⚡'),
                 E('div', {}, [
-                    E('div', { 'style': 'font-size: 1.1rem; font-weight: 700; line-height: 1.2;' }, _('QoSmate Telemetry Dashboard')),
+                    E('div', { 'style': 'font-size: 1.15rem; font-weight: 700; line-height: 1.2;' }, _('QoSmate Live Telemetry & Traffic Matrix')),
                     E('div', { 'style': 'font-size: 0.78rem; color: #64748b; display: flex; align-items: center; gap: 0.4rem;' }, [
                         E('span', { 'class': 'qm-pulse' }),
-                        E('span', {}, _('Engine: CAKE Diffserv8 RFC 8290') + ' | ' + _('Dual-CAKE Active') + ' | ' + _('WAN: ') + (qosStats.wan_interface || 'wan'))
+                        E('span', {}, _('Engine: CAKE Diffserv8 RFC 8290') + ' | ' + _('Dual-CAKE Pre-Proxy') + ' | ' + _('Interface: ') + (qosStats.wan_interface || 'wan'))
                     ])
                 ])
             ]),
@@ -428,7 +438,7 @@ return view.extend({
 
     updateContent: function(data) {
         var view = this;
-        var qosStats = data[0];
+        var qosStats = data[0] || {};
         var ruleStats = data[3] ? (data[3].rule_counters || []) : [];
         var autorateStats = data[4];
 
@@ -458,13 +468,76 @@ return view.extend({
         var ingressBps = (prevIngress.bytes && ingress.bytes && ingress.bytes >= prevIngress.bytes) ? ((ingress.bytes - prevIngress.bytes) / dt) : 0;
         var lanBps = (prevLan.bytes && lan.bytes && lan.bytes >= prevLan.bytes) ? ((lan.bytes - prevLan.bytes) / dt) : 0;
 
-        // 1. Hero Metric Cards Grid (Atoms -> Molecules -> Organism)
+        // Compute Cloudflare / Homelab Web throughput
+        var cfRule = ruleStats.find(function(r) { return r.rule_name === 'Cloudflare Tunnel UDP' || r.rule_name === 'Cloudflare Tunnel TCP'; });
+        var cfBytes = cfRule ? cfRule.total_bytes : 0;
+        var webOut = ruleStats.find(function(r) { return r.rule_name === 'Homelab Web 8000 Out'; });
+        var webBytes = webOut ? webOut.total_bytes : 0;
+        var combinedCfWebBytes = cfBytes + webBytes;
+
+        var prevCfBytes = view.prevCfBytes || combinedCfWebBytes;
+        var cfBps = (combinedCfWebBytes >= prevCfBytes) ? ((combinedCfWebBytes - prevCfBytes) / dt) : 0;
+        view.prevCfBytes = combinedCfWebBytes;
+
+        // Append to circular history buffer
+        view.trafficHistory.push({
+            time: now,
+            egressBps: egressBps,
+            ingressBps: ingressBps,
+            lanBps: lanBps,
+            cfBps: cfBps
+        });
+        if (view.trafficHistory.length > view.maxHistoryPoints) {
+            view.trafficHistory.shift();
+        }
+
+        // 1. Packet Lifecycle Pipeline Strip (Pre-Xray vs Post-Xray Visual Trace)
+        var pipelineStrip = E('div', { 'class': 'qm-pipeline-strip' }, [
+            E('div', { 'class': 'qm-pipeline-node' }, [
+                E('div', { 'style': 'font-size: 1.1rem;' }, '💻'),
+                E('b', {}, _('1. LAN Ingress')),
+                E('span', { 'style': 'color: #64748b;' }, '10.10.10.0/24')
+            ]),
+            E('span', { 'class': 'qm-pipeline-arrow' }, '➔'),
+            E('div', { 'class': 'qm-pipeline-node' }, [
+                E('div', { 'style': 'font-size: 1.1rem;' }, '⚡'),
+                E('b', { 'style': 'color: #0d9488;' }, _('2. Dual-CAKE (ifb)')),
+                E('span', { 'class': 'qm-pill', 'style': 'background: rgba(13,148,136,0.12); color: #0d9488; margin-top: 2px;' }, _('Pre-Xray Shaper'))
+            ]),
+            E('span', { 'class': 'qm-pipeline-arrow' }, '➔'),
+            E('div', { 'class': 'qm-pipeline-node' }, [
+                E('div', { 'style': 'font-size: 1.1rem;' }, '🏷️'),
+                E('b', { 'style': 'color: #2563eb;' }, _('3. DSCP Tagging')),
+                E('span', { 'style': 'color: #64748b;' }, 'Netfilter -160')
+            ]),
+            E('span', { 'class': 'qm-pipeline-arrow' }, '➔'),
+            E('div', { 'class': 'qm-pipeline-node' }, [
+                E('div', { 'style': 'font-size: 1.1rem;' }, '🔀'),
+                E('b', { 'style': 'color: #7c3aed;' }, _('4. Passwall2 / Xray')),
+                E('span', { 'style': 'color: #64748b;' }, 'Direct vs GID 9912')
+            ]),
+            E('span', { 'class': 'qm-pipeline-arrow' }, '➔'),
+            E('div', { 'class': 'qm-pipeline-node' }, [
+                E('div', { 'style': 'font-size: 1.1rem;' }, '🛡️'),
+                E('b', { 'style': 'color: #16a34a;' }, _('5. WAN CAKE Egress')),
+                E('span', { 'class': 'qm-pill', 'style': 'background: rgba(22,163,74,0.12); color: #16a34a; margin-top: 2px;' }, _('Diffserv8 (wan)'))
+            ]),
+            E('span', { 'class': 'qm-pipeline-arrow' }, '➔'),
+            E('div', { 'class': 'qm-pipeline-node' }, [
+                E('div', { 'style': 'font-size: 1.1rem;' }, '🌐'),
+                E('b', {}, _('6. Physical ISP')),
+                E('span', { 'style': 'color: #64748b;' }, (qosStats.wan_interface || 'wan'))
+            ])
+        ]);
+        contentArea.appendChild(pipelineStrip);
+
+        // 2. Hero Metric Cards Grid (Atoms -> Molecules -> Organism)
         var heroGrid = E('div', { 'class': 'qm-grid qm-grid-4' }, [
             // Card 1: Egress (WAN)
             E('div', { 'class': 'qm-card' }, [
                 E('div', { 'class': 'qm-card-title' }, [
                     E('span', {}, _('WAN Egress (Upload)')),
-                    E('span', { 'class': 'qm-pill', 'style': 'background: rgba(37,99,235,0.12); color: #2563eb;' }, (egress.options ? (egress.options.bandwidth ? (egress.options.bandwidth / 1000000).toFixed(0) + 'M' : '120M') : '120M'))
+                    E('span', { 'class': 'qm-pill', 'style': 'background: rgba(37,99,235,0.12); color: #2563eb;' }, (egress.options && egress.options.bandwidth ? (egress.options.bandwidth / 1000000).toFixed(0) + 'M' : '120M'))
                 ]),
                 E('div', { 'class': 'qm-card-value', 'style': 'color: #2563eb;' }, formatRate(egressBps)),
                 E('div', { 'class': 'qm-card-sub' }, [
@@ -478,7 +551,7 @@ return view.extend({
             E('div', { 'class': 'qm-card' }, [
                 E('div', { 'class': 'qm-card-title' }, [
                     E('span', {}, _('WAN Ingress (Download)')),
-                    E('span', { 'class': 'qm-pill', 'style': 'background: rgba(22,163,74,0.12); color: #16a34a;' }, (ingress.options ? (ingress.options.bandwidth ? (ingress.options.bandwidth / 1000000).toFixed(0) + 'M' : '600M') : '600M'))
+                    E('span', { 'class': 'qm-pill', 'style': 'background: rgba(22,163,74,0.12); color: #16a34a;' }, (ingress.options && ingress.options.bandwidth ? (ingress.options.bandwidth / 1000000).toFixed(0) + 'M' : '600M'))
                 ]),
                 E('div', { 'class': 'qm-card-value', 'style': 'color: #16a34a;' }, formatRate(ingressBps)),
                 E('div', { 'class': 'qm-card-sub' }, [
@@ -498,38 +571,77 @@ return view.extend({
                 E('div', { 'class': 'qm-card-sub' }, [
                     E('span', {}, _('Total: ') + formatSize(lan.bytes || 0) + ' (' + (lan.packets || 0).toLocaleString() + ' pkts)'),
                     E('br'),
-                    E('span', {}, _('Memory: ') + formatSize(lan.memory_used || 0) + ' | ' + _('Queues: ') + (lan.active_queues || 0))
+                    E('span', {}, _('Active Queues: ') + (lan.active_queues || 0) + ' | ' + _('Memory: ') + formatSize(lan.memory_used || 0))
                 ])
             ]),
 
-            // Card 4: Cloudflare Argo Tunnel & Homelab
-            (function() {
-                var cfRule = ruleStats.find(function(r) { return r.rule_name === 'Cloudflare Tunnel UDP' || r.rule_name === 'Cloudflare Tunnel TCP'; });
-                var cfPackets = cfRule ? cfRule.total_packets : 0;
-                var cfBytes = cfRule ? cfRule.total_bytes : 0;
-                var webOut = ruleStats.find(function(r) { return r.rule_name === 'Homelab Web 8000 Out'; });
-                var webBytes = webOut ? webOut.total_bytes : 0;
-                return E('div', { 'class': 'qm-card' }, [
-                    E('div', { 'class': 'qm-card-title' }, [
-                        E('span', {}, _('Cloudflare Argo & Homelab')),
-                        E('span', { 'class': 'qm-pill', 'style': 'background: rgba(124,58,237,0.12); color: #7c3aed;' }, 'Tin 4 AF21')
-                    ]),
-                    E('div', { 'class': 'qm-card-value', 'style': 'color: #7c3aed;' }, formatSize(cfBytes + webBytes)),
-                    E('div', { 'class': 'qm-card-sub' }, [
-                        E('span', {}, _('Tunnel Packets: ') + cfPackets.toLocaleString()),
-                        E('br'),
-                        E('span', {}, _('Status: ') + (cfPackets > 0 ? _('Active & Classified') : _('Standby')))
-                    ])
-                ]);
-            })()
+            // Card 4: Cloudflare Argo Tunnel & Homelab Web
+            E('div', { 'class': 'qm-card' }, [
+                E('div', { 'class': 'qm-card-title' }, [
+                    E('span', {}, _('Cloudflare Argo & Web')),
+                    E('span', { 'class': 'qm-pill', 'style': 'background: rgba(124,58,237,0.12); color: #7c3aed;' }, 'Tin 4 AF21')
+                ]),
+                E('div', { 'class': 'qm-card-value', 'style': 'color: #7c3aed;' }, formatRate(cfBps)),
+                E('div', { 'class': 'qm-card-sub' }, [
+                    E('span', {}, _('Volume: ') + formatSize(combinedCfWebBytes) + ' (' + (cfRule ? cfRule.total_packets : 0).toLocaleString() + ' pkts)'),
+                    E('br'),
+                    E('span', {}, _('Homelab Origin: ') + formatSize(webBytes) + ' (:8000)')
+                ])
+            ])
         ]);
         contentArea.appendChild(heroGrid);
 
-        // 2. Tab Navigation
+        // 3. Creative Real-Time Visual Charts Panel (Overview Tab)
+        var visualChartSection = E('div', { 'class': 'qm-grid qm-grid-3' }, [
+            // Left Chart: Live Multi-Stream Throughput History (Area Chart)
+            E('div', { 'class': 'qm-card', 'style': 'grid-column: span 2;' }, [
+                E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem;' }, [
+                    E('div', { 'style': 'font-weight: 700; font-size: 0.92rem; display: flex; align-items: center; gap: 0.4rem;' }, [
+                        E('span', {}, '📈'),
+                        E('span', {}, _('Live Throughput Telemetry Stream (Last 60s)'))
+                    ]),
+                    E('div', { 'style': 'display: flex; align-items: center; gap: 0.75rem; font-size: 0.75rem; font-weight: 600;' }, [
+                        E('span', { 'style': 'color: #2563eb; display: inline-flex; align-items: center; gap: 3px;' }, [ E('span', { 'style': 'width: 8px; height: 8px; border-radius: 50%; background: #2563eb; display: inline-block;' }), _('WAN Up') ]),
+                        E('span', { 'style': 'color: #16a34a; display: inline-flex; align-items: center; gap: 3px;' }, [ E('span', { 'style': 'width: 8px; height: 8px; border-radius: 50%; background: #16a34a; display: inline-block;' }), _('WAN Down') ]),
+                        E('span', { 'style': 'color: #0d9488; display: inline-flex; align-items: center; gap: 3px;' }, [ E('span', { 'style': 'width: 8px; height: 8px; border-radius: 50%; background: #0d9488; display: inline-block;' }), _('Pre-Xray LAN') ]),
+                        E('span', { 'style': 'color: #7c3aed; display: inline-flex; align-items: center; gap: 3px;' }, [ E('span', { 'style': 'width: 8px; height: 8px; border-radius: 50%; background: #7c3aed; display: inline-block;' }), _('Argo/Web') ])
+                    ])
+                ]),
+                E('canvas', { 'class': 'qm-live-traffic-canvas', 'style': 'width: 100%; height: 180px; display: block;' })
+            ]),
+
+            // Right Chart: Diffserv8 Traffic Distribution Donut
+            E('div', { 'class': 'qm-card' }, [
+                E('div', { 'style': 'font-weight: 700; font-size: 0.92rem; margin-bottom: 0.6rem; display: flex; align-items: center; gap: 0.4rem;' }, [
+                    E('span', {}, '🍩'),
+                    E('span', {}, _('CAKE Tin Distribution'))
+                ]),
+                E('canvas', { 'class': 'qm-tin-donut-canvas', 'style': 'width: 100%; height: 180px; display: block;' })
+            ])
+        ]);
+        contentArea.appendChild(visualChartSection);
+
+        // Schedule Canvas Renders
+        window.requestAnimationFrame(function() {
+            var trafficCanvas = contentArea.querySelector('.qm-live-traffic-canvas');
+            if (trafficCanvas) {
+                LiveTrafficChart.draw(trafficCanvas, view.trafficHistory);
+            }
+
+            var donutCanvas = contentArea.querySelector('.qm-tin-donut-canvas');
+            if (donutCanvas) {
+                var activeInstance = view.matrixView === 'ingress' ? ingress : (view.matrixView === 'lan' ? lan : egress);
+                var tins = activeInstance.tins || [];
+                var totalBytes = tins.reduce(function(acc, t) { return acc + (t.sent_bytes || 0); }, 0);
+                TinDonutChart.draw(donutCanvas, tins, totalBytes);
+            }
+        });
+
+        // 4. Tab Navigation
         var tabItems = [
-            { key: 'overview', label: _('CAKE Tins Matrix'), icon: '📊' },
-            { key: 'rules', label: _('Active Rules Live (' + ruleStats.length + ')'), icon: '🎯' },
-            { key: 'tc', label: _('Detailed TC Hierarchy'), icon: '⚙️' }
+            { key: 'overview', label: _('Diffserv8 RFC 8290 Tins Matrix'), icon: '📊' },
+            { key: 'rules', label: _('Active QoS Rules (' + ruleStats.length + ')'), icon: '🎯' },
+            { key: 'tc', label: _('Engine Diagnostics & TC Hierarchy'), icon: '⚙️' }
         ];
 
         if (autorateStats && autorateStats.autorate_enabled) {
@@ -551,7 +663,7 @@ return view.extend({
         }));
         contentArea.appendChild(tabNav);
 
-        // 3. Tab Contents Rendering
+        // 5. Render Tab Contents
         if (view.activeTab === 'overview') {
             view.renderTinsMatrix(contentArea, egress, ingress, lan);
         } else if (view.activeTab === 'rules') {
@@ -572,7 +684,7 @@ return view.extend({
         // Sub-selector: Egress WAN vs Ingress WAN vs Pre-Proxy LAN
         var activeMatrix = view.matrixView || 'egress';
         var activeInstance = activeMatrix === 'ingress' ? ingress : (activeMatrix === 'lan' ? lan : egress);
-        var activeName = activeMatrix === 'ingress' ? _('WAN Ingress (Download Path)') : (activeMatrix === 'lan' ? _('Pre-Proxy LAN (br-lan Ingress)') : _('WAN Egress (Upload Path)'));
+        var activeName = activeMatrix === 'ingress' ? _('WAN Ingress Path (Downloads from Internet)') : (activeMatrix === 'lan' ? _('Pre-Proxy LAN Ingress Path (Dual-CAKE Uploads)') : _('WAN Egress Path (Physical Post-NAT/Proxy Uploads)'));
 
         var switchBar = E('div', { 'style': 'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.6rem; margin-bottom: 1rem;' }, [
             E('div', { 'style': 'font-size: 0.95rem; font-weight: 700;' }, activeName),
@@ -610,13 +722,28 @@ return view.extend({
             var sentPackets = tin.sent_packets || 0;
             var pct = totalBytes > 0 ? (sentBytes / totalBytes * 100).toFixed(1) : '0.0';
 
-            var avgDelay = formatTime(tin.avg_delay_us);
-            var peakDelay = formatTime(tin.peak_delay_us);
-            var baseDelay = formatTime(tin.base_delay_us);
+            var avgDelayUs = tin.avg_delay_us || 0;
+            var peakDelayUs = tin.peak_delay_us || 0;
+            var avgDelay = formatTime(avgDelayUs);
+            var peakDelay = formatTime(peakDelayUs);
+
+            // Latency health indicator (against 5ms RFC target)
+            var latStatus = 'Optimal';
+            var latColor = '#16a34a';
+            if (avgDelayUs > 10000) {
+                latStatus = 'Congested';
+                latColor = '#dc2626';
+            } else if (avgDelayUs > 5000) {
+                latStatus = 'Elevated';
+                latColor = '#ea580c';
+            } else if (avgDelayUs > 2000) {
+                latStatus = 'Good';
+                latColor = '#0d9488';
+            }
 
             var tinCard = E('div', { 'class': 'qm-card qm-tin-card', 'style': 'border-left-color: ' + meta.color + ';' }, [
                 E('div', { 'style': 'display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 0.4rem;' }, [
-                    E('div', { 'style': 'display: flex; align-items: center; gap: 0.4rem;' }, [
+                    E('div', { 'style': 'display: flex; align-items: center; gap: 0.45rem;' }, [
                         E('span', { 'style': 'font-size: 1.25rem;' }, meta.icon),
                         E('div', {}, [
                             E('div', { 'style': 'font-weight: 700; font-size: 0.95rem; color: ' + meta.color + ';' }, 'Tin ' + i + ': ' + meta.name),
@@ -635,18 +762,18 @@ return view.extend({
                     E('div', { 'class': 'qm-bar-fill', 'style': 'width: ' + pct + '%; background: ' + meta.color + ';' })
                 ]),
 
-                // Metrics Matrix Grid
+                // Metrics Matrix Grid with Latency Status
                 E('div', { 'style': 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.6rem; padding-top: 0.5rem; border-top: 1px dashed var(--border-color-medium, #e2e8f0); font-size: 0.78rem;' }, [
                     E('div', {}, [
                         E('div', { 'style': 'color: #64748b; font-size: 0.7rem;' }, _('Packets Sent')),
                         E('div', { 'style': 'font-weight: 700;' }, sentPackets.toLocaleString())
                     ]),
                     E('div', {}, [
-                        E('div', { 'style': 'color: #64748b; font-size: 0.7rem;' }, _('Avg Latency')),
-                        E('div', { 'style': 'font-weight: 700; color: ' + (tin.avg_delay_us > 10000 ? '#e11d48' : '#16a34a') + ';' }, avgDelay)
+                        E('div', { 'style': 'color: #64748b; font-size: 0.7rem;' }, _('Avg Delay')),
+                        E('div', { 'style': 'font-weight: 700; color: ' + latColor + ';' }, avgDelay + ' (' + latStatus + ')')
                     ]),
                     E('div', {}, [
-                        E('div', { 'style': 'color: #64748b; font-size: 0.7rem;' }, _('Peak Latency')),
+                        E('div', { 'style': 'color: #64748b; font-size: 0.7rem;' }, _('Peak Delay')),
                         E('div', { 'style': 'font-weight: 700;' }, peakDelay)
                     ]),
                     E('div', {}, [
@@ -682,7 +809,7 @@ return view.extend({
             E('input', {
                 'type': 'text',
                 'class': 'qm-search',
-                'placeholder': _('Filter by name, port, DSCP...'),
+                'placeholder': _('Filter by name, port, DSCP, tin...'),
                 'value': view.searchQuery,
                 'input': function(ev) {
                     view.searchQuery = ev.target.value.toLowerCase();
@@ -708,7 +835,7 @@ return view.extend({
                 E('th', {}, _('Assigned Tin')),
                 E('th', {}, _('Total Packets')),
                 E('th', {}, _('Total Bytes')),
-                E('th', {}, _('Traffic Rate')),
+                E('th', {}, _('Activity Rate')),
                 E('th', {}, _('IPv4 / IPv6 Breakdown'))
             ])
         ]);
@@ -732,33 +859,33 @@ return view.extend({
                 view.prevRulePackets[r.rule_name] = r.total_packets;
                 var isLive = deltaPkts > 0;
 
-                // Infer DSCP and Tin from rule name
+                // Infer DSCP and Tin accurately from rule name
                 var dscp = 'CS0';
-                var tinName = 'Tin 2 (Best Effort)';
-                var tinColor = '#16a34a';
-
+                var tinId = 2;
                 var nameLower = r.rule_name.toLowerCase();
+
                 if (nameLower.includes('dns') || nameLower.includes('ntp') || nameLower.includes('icmp')) {
-                    dscp = 'CS6'; tinName = 'Tin 7 (Network Control)'; tinColor = '#7c3aed';
+                    dscp = 'CS6'; tinId = 7;
                 } else if (nameLower.includes('gaming') || nameLower.includes('pc_gaming')) {
-                    dscp = 'CS5'; tinName = 'Tin 6 (Realtime Gaming)'; tinColor = '#dc2626';
+                    dscp = 'CS5'; tinId = 6;
                 } else if (nameLower.includes('voice') || nameLower.includes('sip') || nameLower.includes('webrtc')) {
-                    dscp = 'EF'; tinName = 'Tin 5 (Voice & Interactive)'; tinColor = '#2563eb';
+                    dscp = 'EF'; tinId = 6;
                 } else if (nameLower.includes('ssh')) {
-                    dscp = 'CS2'; tinName = 'Tin 5 (Interactive Shell)'; tinColor = '#2563eb';
+                    dscp = 'CS2'; tinId = 5;
                 } else if (nameLower.includes('cloudflare') || nameLower.includes('homelab') || nameLower.includes('uptime')) {
-                    dscp = 'AF21'; tinName = 'Tin 4 (Low-Latency Services)'; tinColor = '#0d9488';
+                    dscp = 'AF21'; tinId = 4;
                 } else if (nameLower.includes('stun') || nameLower.includes('rtmp') || nameLower.includes('streaming')) {
-                    dscp = 'AF41'; tinName = 'Tin 3 (Streaming & Video)'; tinColor = '#ea580c';
+                    dscp = 'AF41'; tinId = 3;
                 } else if (nameLower.includes('torrent') || nameLower.includes('bulk')) {
-                    dscp = 'CS1'; tinName = 'Tin 1 (High Throughput Bulk)'; tinColor = '#64748b';
+                    dscp = 'CS1'; tinId = 1;
                 }
 
+                var meta = DIFFSERV8_META[tinId] || DIFFSERV8_META[2];
                 var badgeColor = getDscpBadgeColor(dscp);
 
                 var tr = E('tr', {
                     'class': 'qm-rule-row',
-                    'data-filter': r.rule_name + ' ' + dscp + ' ' + tinName
+                    'data-filter': r.rule_name + ' ' + dscp + ' ' + meta.name + ' Tin ' + tinId
                 }, [
                     E('td', { 'style': 'text-align: center;' }, [
                         isLive ? E('span', { 'class': 'qm-pulse' }) : E('span', { 'style': 'display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #cbd5e1;' })
@@ -768,7 +895,7 @@ return view.extend({
                         E('span', { 'class': 'qm-pill', 'style': 'background: ' + badgeColor + '22; color: ' + badgeColor + ';' }, dscp)
                     ]),
                     E('td', {}, [
-                        E('span', { 'style': 'font-weight: 600; color: ' + tinColor + ';' }, tinName)
+                        E('span', { 'style': 'font-weight: 600; color: ' + meta.color + ';' }, 'Tin ' + tinId + ' (' + meta.name + ')')
                     ]),
                     E('td', { 'style': 'font-variant-numeric: tabular-nums;' }, (r.total_packets || 0).toLocaleString()),
                     E('td', { 'style': 'font-weight: 600; font-variant-numeric: tabular-nums;' }, formatSize(r.total_bytes || 0)),
@@ -845,7 +972,6 @@ return view.extend({
         ]);
         wrap.appendChild(timeRangeBar);
 
-        // Status row
         var latMs = (cur.latency / 10).toFixed(1);
         var blMs = (cur.baseline / 10).toFixed(1);
         var ulMbps = (cur.ul_rate / 1000).toFixed(1);
@@ -858,53 +984,7 @@ return view.extend({
         ]);
         wrap.appendChild(statusRow);
 
-        // Canvas Latency Chart
-        var latWrap = E('div', { 'style': 'margin-bottom: 1.25rem;' }, [
-            E('div', { 'style': 'font-weight: 600; font-size: 0.88rem; margin-bottom: 0.4rem;' }, _('RTT Latency vs Baseline')),
-            E('canvas', { 'class': 'autorate-latency-canvas', 'style': 'width: 100%; height: 200px; display: block; border-radius: 6px;' })
-        ]);
-        wrap.appendChild(latWrap);
-
-        // Canvas Bandwidth Chart
-        var bwWrap = E('div', {}, [
-            E('div', { 'style': 'font-weight: 600; font-size: 0.88rem; margin-bottom: 0.4rem;' }, _('Adaptive Upload & Download Bandwidth')),
-            E('canvas', { 'class': 'autorate-bw-canvas', 'style': 'width: 100%; height: 200px; display: block; border-radius: 6px;' })
-        ]);
-        wrap.appendChild(bwWrap);
-
         container.appendChild(wrap);
-
-        // Render Canvas Charts
-        window.requestAnimationFrame(function() {
-            var raw = ar.history || [];
-            if (!raw || raw.length < 2) return;
-
-            var latCanvas = wrap.querySelector('.autorate-latency-canvas');
-            if (latCanvas) {
-                var latData = raw.map(function(h) { return [h[0], h[5] / 10]; });
-                var blData = raw.map(function(h) { return [h[0], h[6] / 10]; });
-                TimeSeriesChart.draw(latCanvas, {
-                    series: [
-                        { data: latData, color: '#2563eb', width: 2 },
-                        { data: blData, color: '#16a34a', dashed: true, width: 1.5 }
-                    ],
-                    yFmt: function(v) { return v.toFixed(1) + ' ms'; }
-                });
-            }
-
-            var bwCanvas = wrap.querySelector('.autorate-bw-canvas');
-            if (bwCanvas) {
-                var ulData = raw.map(function(h) { return [h[0], h[1] / 1000]; });
-                var dlData = raw.map(function(h) { return [h[0], h[2] / 1000]; });
-                TimeSeriesChart.draw(bwCanvas, {
-                    series: [
-                        { data: dlData, color: '#16a34a', fill: 'rgba(22,163,74,0.1)', width: 2 },
-                        { data: ulData, color: '#2563eb', fill: 'rgba(37,99,235,0.1)', width: 2 }
-                    ],
-                    yFmt: function(v) { return v.toFixed(1) + ' M'; }
-                });
-            }
-        });
     },
 
     handleSaveApply: null,
