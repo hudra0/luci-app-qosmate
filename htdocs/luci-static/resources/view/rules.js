@@ -383,22 +383,65 @@ return view.extend({
                 E('strong', _('Hybrid Note:')), ' ', 
                 _('Uses Realtime (1:11) & Bulk (1:15) classes with their dscp values from HFSC. All other traffic is handled by a single CAKE class (1:13).')
             ]),
-            E('h4', _('CAKE Mapping (diffserv4):')),
+            E('h4', _('CAKE Diffserv8 Mapping (RFC 8290 - 8 Tins):')),
             E('table', { 'class': 'table' }, [
                 E('tr', { 'class': 'tr' }, [
-                    E('td', { 'class': 'td left', 'width': '25%' }, _('Voice (Highest Priority)')),
+                    E('td', { 'class': 'td left', 'width': '20%' }, _('Tin 7: Network Control')),
+                    E('td', { 'class': 'td left', 'width': '30%' }, 'CS7, CS6'),
+                    E('td', { 'class': 'td left' }, _('DNS, NTP, Routing protocols, ICMP'))
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Tin 6: Realtime / Gaming')),
+                    E('td', { 'class': 'td left' }, 'EF, VA, CS5, CS4'),
+                    E('td', { 'class': 'td left' }, _('Gaming UDP/TCP, Discord Voice, WebRTC, Minimum Latency'))
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Tin 5: Interactive Shell')),
+                    E('td', { 'class': 'td left' }, 'CS2'),
+                    E('td', { 'class': 'td left' }, _('SSH, Interactive terminal sessions, Low-latency signaling'))
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Tin 4: Low-Latency Data')),
+                    E('td', { 'class': 'td left' }, 'AF21, AF22, AF23'),
+                    E('td', { 'class': 'td left' }, _('Cloudflare Tunnel, Homelab web origin, API transactions'))
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Tin 3: Video Streaming')),
+                    E('td', { 'class': 'td left' }, 'CS3, AF41, AF42, AF43, AF31..33'),
+                    E('td', { 'class': 'td left' }, _('Video streaming, RTMP live streaming, Video call media'))
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Tin 2: Best Effort')),
+                    E('td', { 'class': 'td left' }, 'CS0 (default)'),
+                    E('td', { 'class': 'td left' }, _('Standard web browsing, HTTPS, general household traffic'))
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Tin 1: High Throughput')),
+                    E('td', { 'class': 'td left' }, 'AF11, AF12, AF13, CS1'),
+                    E('td', { 'class': 'td left' }, _('Heavy downloads, bulk transfers, BitTorrent / P2P'))
+                ]),
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left' }, _('Tin 0: Low Priority')),
+                    E('td', { 'class': 'td left' }, 'LE (1)'),
+                    E('td', { 'class': 'td left' }, _('Background updates, scavenger traffic'))
+                ])
+            ]),
+            E('h4', _('CAKE Diffserv4 Mapping (Legacy 4 Tins):')),
+            E('table', { 'class': 'table' }, [
+                E('tr', { 'class': 'tr' }, [
+                    E('td', { 'class': 'td left', 'width': '25%' }, _('Voice (Tin 3 - Highest)')),
                     E('td', { 'class': 'td left' }, 'CS7, CS6, EF, VA, CS5, CS4')
                 ]),
                 E('tr', { 'class': 'tr' }, [
-                    E('td', { 'class': 'td left' }, _('Video')),
+                    E('td', { 'class': 'td left' }, _('Video (Tin 2)')),
                     E('td', { 'class': 'td left' }, 'CS3, AF4x, AF3x, AF2x, CS2, TOS1')
                 ]),
                 E('tr', { 'class': 'tr' }, [
-                    E('td', { 'class': 'td left' }, _('Best Effort')),
+                    E('td', { 'class': 'td left' }, _('Best Effort (Tin 1)')),
                     E('td', { 'class': 'td left' }, 'CS0, AF1x, TOS0')
                 ]),
                 E('tr', { 'class': 'tr' }, [
-                    E('td', { 'class': 'td left' }, _('Bulk (Lowest Priority)')),
+                    E('td', { 'class': 'td left' }, _('Bulk (Tin 0 - Lowest)')),
                     E('td', { 'class': 'td left' }, 'CS1, LE')
                 ])
             ])
@@ -554,18 +597,35 @@ return view.extend({
         };
 
         o = s.taboption('general', form.ListValue, 'class', _('DSCP Class'));
-        o.value('ef', _('EF - Expedited Forwarding (46)'));
-        o.value('cs5', _('CS5 (40)'));
-        o.value('cs6', _('CS6 (48)'));
-        o.value('cs7', _('CS7 (56)'));
-        o.value('cs4', _('CS4 (32)'));
-        o.value('af41', _('AF41 (34)'));
-        o.value('af42', _('AF42 (36)'));
-        o.value('af11', _('AF11 (10)'));
-        o.value('cs2', _('CS2 (16)'));
-        o.value('cs1', _('CS1 (8)'));
-        o.value('cs0', _('CS0 - Best Effort (0)'));
+        o.value('cs7', _('CS7 (56) - Tin 7: Network Control'));
+        o.value('cs6', _('CS6 (48) - Tin 7: Network Control (DNS / NTP)'));
+        o.value('ef', _('EF (46) - Tin 6: Realtime / Minimum Latency / Gaming'));
+        o.value('va', _('VA (44) - Tin 6: Voice / Minimum Latency'));
+        o.value('cs5', _('CS5 (40) - Tin 6: Gaming / Realtime'));
+        o.value('cs4', _('CS4 (32) - Tin 6: Realtime / Low Latency'));
+        o.value('cs2', _('CS2 (16) - Tin 5: Interactive Shell (SSH)'));
+        o.value('af21', _('AF21 (18) - Tin 4: Low-Latency Data / Cloudflare Tunnel / Homelab'));
+        o.value('af22', _('AF22 (20) - Tin 4: Low-Latency Data (Medium Drop)'));
+        o.value('af23', _('AF23 (22) - Tin 4: Low-Latency Data (High Drop)'));
+        o.value('cs3', _('CS3 (24) - Tin 3: Video Streaming'));
+        o.value('af41', _('AF41 (34) - Tin 3: Video Streaming'));
+        o.value('af42', _('AF42 (36) - Tin 3: Video Streaming (Boosted TCP)'));
+        o.value('af43', _('AF43 (38) - Tin 3: Video Streaming'));
+        o.value('af31', _('AF31 (26) - Tin 3: Multimedia Streaming'));
+        o.value('af32', _('AF32 (28) - Tin 3: Multimedia Streaming'));
+        o.value('af33', _('AF33 (30) - Tin 3: Multimedia Streaming'));
+        o.value('cs0', _('CS0 (0) - Tin 2: Best Effort (General Web)'));
+        o.value('af11', _('AF11 (10) - Tin 1: High Throughput'));
+        o.value('af12', _('AF12 (12) - Tin 1: High Throughput'));
+        o.value('af13', _('AF13 (14) - Tin 1: High Throughput'));
+        o.value('cs1', _('CS1 (8) - Tin 1: Bulk Transfers / P2P'));
+        o.value('1', _('LE (1) - Tin 0: Low Priority / Background Scavenger'));
         o.rmempty = false;
+        o.cfgvalue = function(section_id) {
+            var val = uci.get('qosmate', section_id, 'class');
+            if (val === 'le') return '1';
+            return val;
+        };
 
         o = s.taboption('general', form.Flag, 'counter', _('Enable counter'));
         o.rmempty = false;

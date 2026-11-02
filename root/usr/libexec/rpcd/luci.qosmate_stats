@@ -44,9 +44,10 @@ filter_qosmate_qdiscs() {
     local stats="$1"
     local wan_interface="$2"
     local ifb_interface="$3"
+    local ifb_lan_interface="$4"
     
-    # Filter to only include qdiscs related to QoSmate (on wan_interface and ifb_interface)
-    echo "$stats" | jq -c "[.[] | select(.dev == \"$wan_interface\" or .dev == \"$ifb_interface\")]" 2>/dev/null || echo "[]"
+    # Filter to only include qdiscs related to QoSmate (on wan_interface, ifb_interface, and ifb_lan_interface)
+    echo "$stats" | jq -c "[.[] | select(.dev == \"$wan_interface\" or .dev == \"$ifb_interface\" or .dev == \"$ifb_lan_interface\")]" 2>/dev/null || echo "[]"
 }
 
 # Function to get the statistics based on root qdisc
@@ -67,16 +68,21 @@ get_stats() {
     
     local ifb_interface
     ifb_interface="ifb-$wan_interface"
+
+    local lan_interface
+    lan_interface=$(uci -q get qosmate.settings.LAN || echo "br-lan")
+    local ifb_lan_interface
+    ifb_lan_interface="ifb-$lan_interface"
     
     # Filter basic stats to only include QoSmate relevant qdiscs
     local filtered_stats
-    filtered_stats=$(filter_qosmate_qdiscs "$basic_stats" "$wan_interface" "$ifb_interface")
+    filtered_stats=$(filter_qosmate_qdiscs "$basic_stats" "$wan_interface" "$ifb_interface" "$ifb_lan_interface")
     debug_log "Filtered stats: $filtered_stats"
 
     # Process statistics based on qdisc type
     local result
     if [ "$root_qdisc" = "cake" ]; then
-        # Extract CAKE statistics for both egress and ingress
+        # Extract CAKE statistics for egress, ingress, and pre-proxy LAN ingress
         local cake_egress_stats
         cake_egress_stats=$(echo "$filtered_stats" | jq -c "[.[] | select(.kind == \"cake\" and .dev == \"$wan_interface\")]" 2>/dev/null || echo "[]")
         debug_log "Cake egress stats: $cake_egress_stats"
@@ -85,37 +91,47 @@ get_stats() {
         cake_ingress_stats=$(echo "$filtered_stats" | jq -c "[.[] | select(.kind == \"cake\" and .dev == \"$ifb_interface\")]" 2>/dev/null || echo "[]")
         debug_log "Cake ingress stats: $cake_ingress_stats"
 
+        local cake_lan_stats
+        cake_lan_stats=$(echo "$filtered_stats" | jq -c "[.[] | select(.kind == \"cake\" and .dev == \"$ifb_lan_interface\")]" 2>/dev/null || echo "[]")
+        debug_log "Cake lan stats: $cake_lan_stats"
+
         # Get the priority queue type (diffserv3/4/8)
         local priority_queue_ingress
-        priority_queue_ingress=$(uci -q get qosmate.cake.PRIORITY_QUEUE_INGRESS || echo "diffserv4")
+        priority_queue_ingress=$(uci -q get qosmate.cake.PRIORITY_QUEUE_INGRESS || echo "diffserv8")
         local priority_queue_egress
-        priority_queue_egress=$(uci -q get qosmate.cake.PRIORITY_QUEUE_EGRESS || echo "diffserv4")
+        priority_queue_egress=$(uci -q get qosmate.cake.PRIORITY_QUEUE_EGRESS || echo "diffserv8")
 
         # Extract the actual cake qdisc stats for UI compatibility
         local cake_egress
         cake_egress=$(echo "$cake_egress_stats" | jq -c '.[0] // {}' 2>/dev/null || echo "{}")
         local cake_ingress
         cake_ingress=$(echo "$cake_ingress_stats" | jq -c '.[0] // {}' 2>/dev/null || echo "{}")
+        local cake_lan
+        cake_lan=$(echo "$cake_lan_stats" | jq -c '.[0] // {}' 2>/dev/null || echo "{}")
 
         # Create final JSON output using jq to ensure proper escaping
         result=$(jq -n \
             --arg rq "$root_qdisc" \
             --arg wi "$wan_interface" \
             --arg ii "$ifb_interface" \
+            --arg li "$ifb_lan_interface" \
             --arg pqi "$priority_queue_ingress" \
             --arg pqe "$priority_queue_egress" \
             --argjson fs "$filtered_stats" \
             --argjson ce "$cake_egress" \
             --argjson ci "$cake_ingress" \
+            --argjson cl "$cake_lan" \
             '{
                 root_qdisc: $rq,
                 wan_interface: $wi,
                 ifb_interface: $ii,
+                ifb_lan_interface: $li,
                 priority_queue_ingress: $pqi,
                 priority_queue_egress: $pqe,
                 qdisc_stats: $fs,
                 cake_egress: $ce,
-                cake_ingress: $ci
+                cake_ingress: $ci,
+                cake_lan: $cl
             }' 2>/dev/null)
     elif [ "$root_qdisc" = "hfsc" ] || [ "$root_qdisc" = "hybrid" ]; then
         # Extract HFSC root qdiscs and classes (hybrid uses HFSC root)

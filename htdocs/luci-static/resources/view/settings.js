@@ -792,6 +792,12 @@ return view.extend({
         o.editable = true;
         o.default = wanInterface;
 
+        var lanInterface = uci.get('qosmate', 'settings', 'LAN') || 'br-lan';
+        o = s_basic.option(widgets.DeviceSelect, 'LAN', _('LAN Interface'), _('Select the LAN interface for Pre-Proxy queueing and client host isolation'));
+        o.rmempty = false;
+        o.editable = true;
+        o.default = lanInterface;
+
         createOption('DOWNRATE', _('Download Rate (kbps)'), _('Set the download rate in kbps. 0 disables ingress shaping (no IFB device is created).'), _('Default: 90000'), 'uinteger');
         createOption('UPRATE', _('Upload Rate (kbps)'), _('Set the upload rate in kbps. 0 disables egress shaping.'), _('Default: 45000'), 'uinteger');
         

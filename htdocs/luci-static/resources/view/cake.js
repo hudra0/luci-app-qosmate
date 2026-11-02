@@ -129,15 +129,32 @@ return view.extend({
             addRelevanceInfo(_('Sets CAKE\'s diffserv mode for incoming traffic'), 'PRIORITY_QUEUE_INGRESS', rootQdisc));
         o.value('diffserv3', _('Diffserv 3-tier priority'));
         o.value('diffserv4', _('Diffserv 4-tier priority'));
-        o.value('diffserv8', _('Diffserv 8-tier priority'));
-        o.default = 'diffserv4';
+        o.value('diffserv8', _('Diffserv 8-tier priority (RFC 8290)'));
+        o.default = 'diffserv8';
 
         o = s.option(form.ListValue, 'PRIORITY_QUEUE_EGRESS', _('Priority Queue (Egress)'), 
             addRelevanceInfo(_('Sets CAKE\'s diffserv mode for outgoing traffic'), 'PRIORITY_QUEUE_EGRESS', rootQdisc));
         o.value('diffserv3', _('Diffserv 3-tier priority'));
         o.value('diffserv4', _('Diffserv 4-tier priority'));
-        o.value('diffserv8', _('Diffserv 8-tier priority'));
-        o.default = 'diffserv4';
+        o.value('diffserv8', _('Diffserv 8-tier priority (RFC 8290)'));
+        o.default = 'diffserv8';
+
+        o = s.option(form.Flag, 'DUAL_CAKE', _('Dual-CAKE Pre-Proxy Queue'), 
+            addRelevanceInfo(_('Enables CAKE queueing on LAN ingress before Xray Core / proxy interception. Classifies and prioritizes traffic before encryption, isolates bandwidth per client device, and bypasses local LAN-to-LAN gigabit traffic.'), 'DUAL_CAKE', rootQdisc));
+        o.rmempty = false;
+        o.default = '1';
+
+        o = s.option(form.Flag, 'LAN_BYPASS_LOCAL', _('Bypass Local LAN Traffic'), 
+            addRelevanceInfo(_('Exempts local LAN subnets (LAN-to-LAN and router traffic) from rate limiting so local communication operates at full gigabit wire speed.'), 'LAN_BYPASS_LOCAL', rootQdisc));
+        o.rmempty = false;
+        o.default = '1';
+        o.depends('DUAL_CAKE', '1');
+
+        o = s.option(form.Value, 'LAN_BYPASS_SUBNETS', _('Additional Bypass Subnets'), 
+            addRelevanceInfo(_('Space-separated list of additional subnets to exempt from rate limiting (e.g. 192.168.0.0/16)'), 'LAN_BYPASS_SUBNETS', rootQdisc));
+        o.placeholder = _('e.g. 192.168.0.0/16');
+        o.rmempty = true;
+        o.depends('DUAL_CAKE', '1');
 
         o = s.option(form.Flag, 'HOST_ISOLATION', _('Host Isolation'), 
             addRelevanceInfo(_('Applies fairness first by host, then by flow(dual-srchost/dual-dsthost)'), 'HOST_ISOLATION', rootQdisc));

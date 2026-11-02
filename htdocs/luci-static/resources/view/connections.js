@@ -16,6 +16,7 @@ var dscpToString = function(mark) {
     var dscp = mark & 0x3F;
     var dscpMap = {
         0: 'CS0',
+        1: 'LE',
         8: 'CS1',
         10: 'AF11',
         12: 'AF12',
@@ -33,6 +34,7 @@ var dscpToString = function(mark) {
         36: 'AF42',
         38: 'AF43',
         40: 'CS5',
+        44: 'VA',
         46: 'EF',
         48: 'CS6',
         56: 'CS7'

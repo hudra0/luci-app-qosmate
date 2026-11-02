@@ -657,6 +657,68 @@ return view.extend({
             }
         }
         
+        // Process CAKE pre-proxy LAN ingress statistics (Dual-CAKE)
+        if (data.cake_lan && data.cake_lan.tins) {
+            var lanRows = [];
+            var diffservMode = data.cake_lan.options ? data.cake_lan.options.diffserv : 'diffserv8';
+            
+            data.cake_lan.tins.forEach(function(tin, index) {
+                lanRows.push([
+                    'Tin ' + index,
+                    bytesToKbits(tin.threshold_rate) + ' Kbit/s',
+                    formatTime(tin.target_us),
+                    formatTime(tin.interval_us),
+                    formatTime(tin.peak_delay_us),
+                    formatTime(tin.avg_delay_us),
+                    formatTime(tin.base_delay_us),
+                    formatSize(tin.sent_bytes),
+                    tin.sent_packets,
+                    tin.drops,
+                    tin.ecn_mark
+                ]);
+            });
+            
+            if (lanRows.length > 0) {
+                result.tables.push(self.createStatsTable(
+                    _('CAKE Pre-Proxy (LAN Ingress) Statistics'),
+                    [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
+                    lanRows
+                ));
+                
+                var tinLabels = lanRows.map(function(row, index) {
+                    return getTinName(index, diffservMode);
+                });
+                var sentBytes = lanRows.map(function(row) { 
+                    return parseSizeToBytes(row[7]);
+                });
+                var sentPackets = lanRows.map(function(row) { return parseInt(row[8]); });
+                var droppedPackets = lanRows.map(function(row) { return parseInt(row[9]); });
+                var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
+
+                result.charts.push(self.createChart(
+                    'cake-lan-bytes',
+                    _('Pre-Proxy Bytes Queued by Tin'),
+                    sentBytes,
+                    tinLabels,
+                    cakeColors
+                ));
+                result.charts.push(self.createChart(
+                    'cake-lan-packets',
+                    _('Pre-Proxy Packets Queued by Tin'),
+                    sentPackets,
+                    tinLabels,
+                    cakeColors
+                ));
+                result.charts.push(self.createChart(
+                    'cake-lan-dropped',
+                    _('Pre-Proxy Dropped Packets by Tin'),
+                    droppedPackets,
+                    tinLabels,
+                    cakeColors
+                ));
+            }
+        }
+        
         return result;
     },
 
