@@ -259,13 +259,16 @@ var TimeSeriesChart = {
 // title.includes('Egress') dropped every table and chart in a non-English UI.
 var qosmateEgressHeadings = [
     'CAKE Egress Statistics',
+    'CAKE Egress Statistics (Upload & Pre-Proxy Merged)',
     'CAKE Statistics for Default Class (Egress)',
     'Egress Bytes Sent by Class',
     'Egress Bytes Sent by Tin',
+    'Egress Bytes Sent by Tin (Pre-Proxy LAN + Post-Proxy WAN)',
     'Egress Dropped Packets by Class',
     'Egress Dropped Packets by Tin',
     'Egress Packets Sent by Class',
     'Egress Packets Sent by Tin',
+    'Egress Packets Sent by Tin (Pre-Proxy LAN + Post-Proxy WAN)',
     'HFSC Egress Class Statistics',
     'HTB Egress Class Statistics',
     'Hybrid Egress Class Statistics'
@@ -273,31 +276,42 @@ var qosmateEgressHeadings = [
 
 var qosmateIngressHeadings = [
     'CAKE Ingress Statistics',
+    'CAKE Ingress Statistics (Download)',
     'CAKE Statistics for Default Class (Ingress)',
     'HFSC Ingress Class Statistics',
     'HTB Ingress Class Statistics',
     'Hybrid Ingress Class Statistics',
     'Ingress Bytes Sent by Class',
     'Ingress Bytes Sent by Tin',
+    'Ingress Bytes Received by Tin',
     'Ingress Dropped Packets by Class',
     'Ingress Dropped Packets by Tin',
     'Ingress Packets Sent by Class',
-    'Ingress Packets Sent by Tin'
+    'Ingress Packets Sent by Tin',
+    'Ingress Packets Received by Tin'
 ];
 
+var isLanHeading = function(heading) {
+    if (!heading) return false;
+    return heading.indexOf('Pre-Proxy (LAN Ingress)') !== -1;
+};
+
 var isEgressHeading = function(heading) {
-    for (var i = 0; i < qosmateEgressHeadings.length; i++)
-        if (heading === _(qosmateEgressHeadings[i]))
-            return true;
-    return false;
+    if (!heading) return false;
+    for (var i = 0; i < qosmateEgressHeadings.length; i++) {
+        if (heading.indexOf(_(qosmateEgressHeadings[i])) !== -1 || heading.indexOf(qosmateEgressHeadings[i]) !== -1) return true;
+    }
+    return heading.indexOf('Egress') !== -1 || heading.indexOf('Upload') !== -1;
 };
 
 var isIngressHeading = function(heading) {
-    for (var i = 0; i < qosmateIngressHeadings.length; i++)
-        if (heading === _(qosmateIngressHeadings[i]))
-            return true;
-    return false;
+    if (!heading) return false;
+    for (var i = 0; i < qosmateIngressHeadings.length; i++) {
+        if (heading.indexOf(_(qosmateIngressHeadings[i])) !== -1 || heading.indexOf(qosmateIngressHeadings[i]) !== -1) return true;
+    }
+    return heading.indexOf('Ingress') !== -1 || heading.indexOf('Download') !== -1;
 };
+
 
 // Main view
 return view.extend({
@@ -351,14 +365,20 @@ return view.extend({
         };
     },
 
-    // Create a table to display QoS statistics
+    // Create a table to display QoS statistics with uniform, responsive font styling
     createStatsTable: function(title, headers, rows) {
-        var table = E('table', { 'class': 'table cbi-section-table' });
+        var table = E('table', { 
+            'class': 'table cbi-section-table',
+            'style': 'width: 100%; border-collapse: collapse; font-size: 13px;'
+        });
         
         // Add table headers
         var headerRow = E('tr', { 'class': 'tr table-titles' });
         headers.forEach(function(header) {
-            headerRow.appendChild(E('th', { 'class': 'th' }, header));
+            headerRow.appendChild(E('th', { 
+                'class': 'th',
+                'style': 'font-size: 13px; font-weight: 600; padding: 10px 10px; white-space: nowrap; text-align: left;'
+            }, header));
         });
         table.appendChild(headerRow);
         
@@ -367,7 +387,10 @@ return view.extend({
             rows.forEach(function(row) {
                 var tableRow = E('tr', { 'class': 'tr' });
                 row.forEach(function(cell) {
-                    tableRow.appendChild(E('td', { 'class': 'td' }, cell));
+                    tableRow.appendChild(E('td', { 
+                        'class': 'td',
+                        'style': 'font-size: 13px; padding: 9px 10px; white-space: nowrap; text-align: left; vertical-align: middle;'
+                    }, cell));
                 });
                 table.appendChild(tableRow);
             });
@@ -376,227 +399,585 @@ return view.extend({
             emptyRow.appendChild(E('td', { 
                 'class': 'td', 
                 'colspan': headers.length, 
-                'style': 'text-align: center;' 
+                'style': 'text-align: center; font-size: 13px; padding: 15px;' 
             }, _('No data available')));
             table.appendChild(emptyRow);
         }
         
-        return E('div', { 'class': 'stats-table-container', 'style': 'margin-bottom: 10px;' }, [
-            E('h3', { 'style': 'margin-bottom: 1.5em;' }, title),
+        return E('div', { 
+            'class': 'stats-table-container', 
+            'style': 'margin-bottom: 25px; overflow-x: auto; -webkit-overflow-scrolling: touch;' 
+        }, [
+            E('h3', { 'style': 'margin: 10px 0 12px 0; font-size: 15px; font-weight: 600;' }, title),
             table
         ]);
     },
 
-    // Create a simple chart using DOM elements
-    createChart: function(id, title, data, labels, colors) {
-        var container = E('div', { 'class': 'chart-container', 'style': 'height: 250px; margin-bottom: 10px;' });
-        var chartTitle = E('h3', { 'style': 'margin-bottom: 1.5em;' }, title);
+    // Create a unified single chart with interactive metric switching (Bytes, Packets, Drops)
+    // and stacked dual-tier bars for Pre-Proxy LAN + Post-Proxy WAN consolidation
+    createUnifiedSingleChart: function(id, title, metricsData, labels, colors, subMetricsData, initialMetric, metricChangeCallback) {
+        var activeMetric = initialMetric || 'bytes';
+        var container = E('div', { 
+            'class': 'chart-container', 
+            'id': id,
+            'style': 'background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 8px; padding: 18px; margin-bottom: 25px; display: flex; flex-direction: column; width: 100%;' 
+        });
         
+        function renderChart(metric) {
+            activeMetric = metric;
+            dom.content(container, '');
+            
+            // Header Row: Title on Left, Metric Switcher Buttons on Right
+            var headerRow = E('div', { 
+                'style': 'display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 12px;' 
+            }, [
+                E('h3', { 'style': 'margin: 0; font-size: 15px; font-weight: 600;' }, title),
+                E('div', { 'class': 'btn-group', 'style': 'display: inline-flex; border-radius: 6px; overflow: hidden; border: 1px solid rgba(255,255,255,0.15);' }, [
+                    E('button', { 
+                        'class': 'btn ' + (activeMetric === 'bytes' ? 'cbi-button-apply' : 'cbi-button-neutral'), 
+                        'style': 'padding: 4px 12px; font-size: 11px; font-weight: bold; cursor: pointer;',
+                        'click': function(ev) {
+                            ev.preventDefault();
+                            if (metricChangeCallback) metricChangeCallback('bytes');
+                            renderChart('bytes');
+                        }
+                    }, _('Traffic (Bytes)')),
+                    E('button', { 
+                        'class': 'btn ' + (activeMetric === 'packets' ? 'cbi-button-apply' : 'cbi-button-neutral'), 
+                        'style': 'padding: 4px 12px; font-size: 11px; font-weight: bold; cursor: pointer; border-left: 1px solid rgba(255,255,255,0.15); border-right: 1px solid rgba(255,255,255,0.15);',
+                        'click': function(ev) {
+                            ev.preventDefault();
+                            if (metricChangeCallback) metricChangeCallback('packets');
+                            renderChart('packets');
+                        }
+                    }, _('Packets')),
+                    E('button', { 
+                        'class': 'btn ' + (activeMetric === 'dropped' ? 'cbi-button-apply' : 'cbi-button-neutral'), 
+                        'style': 'padding: 4px 12px; font-size: 11px; font-weight: bold; cursor: pointer;',
+                        'click': function(ev) {
+                            ev.preventDefault();
+                            if (metricChangeCallback) metricChangeCallback('dropped');
+                            renderChart('dropped');
+                        }
+                    }, _('Dropped'))
+                ])
+            ]);
+            container.appendChild(headerRow);
+            
+            // Sub-Badge for Dual-CAKE Egress
+            if (subMetricsData) {
+                var subBadge = E('div', { 'style': 'display: flex; gap: 16px; margin-bottom: 10px; font-size: 11px; opacity: 0.85;' }, [
+                    E('div', { 'style': 'display: flex; align-items: center;' }, [
+                        E('span', { 'style': 'display: inline-block; width: 12px; height: 12px; background: currentColor; border-radius: 2px; margin-right: 5px; opacity: 0.95;' }),
+                        E('span', {}, _('After-Routing WAN (Solid / Post-Xray)'))
+                    ]),
+                    E('div', { 'style': 'display: flex; align-items: center;' }, [
+                        E('span', { 'style': 'display: inline-block; width: 12px; height: 12px; background: currentColor; border-radius: 2px; margin-right: 5px; opacity: 0.45;' }),
+                        E('span', {}, _('Pre-Routing LAN (Muted / Pre-Xray)'))
+                    ])
+                ]);
+                container.appendChild(subBadge);
+            }
+            
+            var data = (metricsData && metricsData[activeMetric]) ? metricsData[activeMetric] : [];
+            var subData = (subMetricsData && subMetricsData[activeMetric]) ? subMetricsData[activeMetric] : null;
+            
+            var chartData = E('div', { 
+                'class': 'chart-data', 
+                'style': 'display: flex; height: 170px; margin-top: 6px; align-items: flex-end; padding-bottom: 8px; border-bottom: 1px solid rgba(255, 255, 255, 0.12);' 
+            });
+            
+            if (data && data.length > 0) {
+                var totals = [];
+                for (var i = 0; i < data.length; i++) {
+                    var v1 = (typeof data[i] === 'number') ? data[i] : 0;
+                    var v2 = (subData && typeof subData[i] === 'number') ? subData[i] : 0;
+                    totals.push(v1 + v2);
+                }
+                var maxValue = Math.max.apply(null, totals);
+                
+                var formatNum = function(num) {
+                    if (activeMetric === 'bytes') {
+                        if (num >= 1073741824) return (num / 1073741824).toFixed(1) + 'G';
+                        if (num >= 1048576) return (num / 1048576).toFixed(1) + 'M';
+                        if (num >= 1024) return (num / 1024).toFixed(1) + 'K';
+                        return String(num) + 'B';
+                    } else {
+                        if (num >= 1000000) return (num / 1000000).toFixed(1) + 'M';
+                        if (num >= 1000) return (num / 1000).toFixed(1) + 'K';
+                        return String(num);
+                    }
+                };
+
+                for (var i = 0; i < data.length; i++) {
+                    var valWan = (typeof data[i] === 'number') ? data[i] : 0;
+                    var valLan = (subData && typeof subData[i] === 'number') ? subData[i] : 0;
+                    var valTotal = valWan + valLan;
+                    
+                    var barHeight = 2;
+                    if (valTotal > 0 && maxValue > 0) {
+                        var ratio = valTotal / maxValue;
+                        barHeight = Math.max(8, Math.round(Math.sqrt(ratio) * 130));
+                    }
+                    var color = colors ? colors[i % colors.length] : '#0088cc';
+                    var fullLabel = labels ? labels[i] : ('Tin ' + i);
+                    var shortTag = 'T' + i;
+                    
+                    var formattedVal = formatNum(valTotal);
+                    var tooltipText = fullLabel + ' : ' + formattedVal;
+                    if (subData && (valWan > 0 || valLan > 0)) {
+                        tooltipText += ' (WAN: ' + formatNum(valWan) + ' | LAN: ' + formatNum(valLan) + ')';
+                    }
+                    
+                    var barContainer = E('div', { 
+                        'style': 'flex: 1; text-align: center; padding: 0 4px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; cursor: pointer;',
+                        'title': tooltipText
+                    });
+                    
+                    var valueLabel = E('div', { 
+                        'style': 'font-size: 11px; margin-bottom: 4px; font-weight: 600; opacity: ' + (valTotal > 0 ? '1' : '0.35') + ';' 
+                    }, formattedVal);
+                    
+                    var bar = E('div', { 
+                        'style': 'width: 70%; max-width: 38px; min-width: 14px; height: ' + barHeight + 'px; border-radius: 4px 4px 0 0; display: flex; flex-direction: column-reverse; overflow: hidden; opacity: ' + (valTotal > 0 ? '0.95' : '0.25') + '; transition: height 0.3s ease;' 
+                    });
+                    
+                    if (subData && valTotal > 0 && (valWan > 0 || valLan > 0)) {
+                        var wanHeight = Math.round(barHeight * (valWan / valTotal));
+                        var lanHeight = barHeight - wanHeight;
+                        
+                        if (wanHeight > 0) {
+                            bar.appendChild(E('div', {
+                                'style': 'width: 100%; height: ' + wanHeight + 'px; background-color: ' + color + '; opacity: 0.95;',
+                                'title': 'WAN: ' + formatNum(valWan)
+                            }));
+                        }
+                        if (lanHeight > 0) {
+                            bar.appendChild(E('div', {
+                                'style': 'width: 100%; height: ' + lanHeight + 'px; background-color: ' + color + '; opacity: 0.45; border-bottom: ' + (wanHeight > 0 ? '1px solid rgba(255,255,255,0.3)' : 'none') + ';',
+                                'title': 'LAN Pre-Proxy: ' + formatNum(valLan)
+                            }));
+                        }
+                    } else {
+                        bar.style.backgroundColor = color;
+                    }
+                    
+                    var tagBadge = E('div', { 
+                        'style': 'font-size: 11px; font-weight: bold; margin-top: 6px; color: ' + color + ';' 
+                    }, shortTag);
+                    
+                    barContainer.appendChild(valueLabel);
+                    barContainer.appendChild(bar);
+                    barContainer.appendChild(tagBadge);
+                    chartData.appendChild(barContainer);
+                }
+                
+                container.appendChild(chartData);
+                
+                // Wrapped, clean legend grid underneath bars
+                var legendContainer = E('div', { 
+                    'style': 'display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; margin-top: 14px; font-size: 11px;' 
+                });
+                
+                for (var j = 0; j < data.length; j++) {
+                    var c = colors ? colors[j % colors.length] : '#0088cc';
+                    var lbl = labels ? labels[j] : ('Tin ' + j);
+                    var cleanName = lbl.replace(/^Tin\s*\d+\s*:\s*/i, '');
+                    
+                    var legendItem = E('div', { 
+                        'style': 'display: inline-flex; align-items: center; white-space: nowrap;' 
+                    }, [
+                        E('span', { 
+                            'style': 'display: inline-block; width: 10px; height: 10px; border-radius: 3px; background-color: ' + c + '; margin-right: 5px; flex-shrink: 0;' 
+                        }),
+                        E('span', { 'style': 'opacity: 0.88;' }, 'T' + j + ': ' + cleanName)
+                    ]);
+                    legendContainer.appendChild(legendItem);
+                }
+                
+                container.appendChild(legendContainer);
+            } else {
+                chartData.appendChild(E('div', { 'style': 'width: 100%; text-align: center; padding-top: 60px;' }, 
+                                     _('No data available')));
+                container.appendChild(chartData);
+            }
+        }
+        
+        renderChart(activeMetric);
+        return container;
+    },
+
+    // Create an elegant, responsive chart with zero label overlap, adaptive sqrt scaling,
+    // and optional stacked dual-tier bars for Pre-Proxy LAN + Post-Proxy WAN consolidation
+    createChart: function(id, title, data, labels, colors, subData, subLabel) {
+        var container = E('div', { 
+            'class': 'chart-container', 
+            'style': 'background: rgba(255, 255, 255, 0.02); border: 1px solid rgba(255, 255, 255, 0.07); border-radius: 8px; padding: 16px; margin-bottom: 20px; display: flex; flex-direction: column;' 
+        });
+        
+        var chartTitle = E('h3', { 'style': 'margin: 0 0 10px 0; font-size: 14px; font-weight: 600;' }, title);
         container.appendChild(chartTitle);
+
+        if (subData && subData.length > 0) {
+            var subBadge = E('div', { 'style': 'display: flex; gap: 14px; margin-bottom: 8px; font-size: 11px; opacity: 0.8;' }, [
+                E('div', { 'style': 'display: flex; align-items: center;' }, [
+                    E('span', { 'style': 'display: inline-block; width: 10px; height: 10px; background: currentColor; border-radius: 2px; margin-right: 4px; opacity: 0.95;' }),
+                    E('span', {}, _('After-Routing WAN (Solid)'))
+                ]),
+                E('div', { 'style': 'display: flex; align-items: center;' }, [
+                    E('span', { 'style': 'display: inline-block; width: 10px; height: 10px; background: currentColor; border-radius: 2px; margin-right: 4px; opacity: 0.45;' }),
+                    E('span', {}, _('Pre-Routing LAN (Muted)'))
+                ])
+            ]);
+            container.appendChild(subBadge);
+        }
         
-        // Simple bar chart implementation
-        var chartData = E('div', { 'class': 'chart-data', 'style': 'display: flex; height: 180px; margin-top: 5px; align-items: flex-end;' });
+        var chartData = E('div', { 
+            'class': 'chart-data', 
+            'style': 'display: flex; height: 160px; margin-top: 5px; align-items: flex-end; padding-bottom: 6px; border-bottom: 1px solid rgba(255, 255, 255, 0.12);' 
+        });
         
         if (data && data.length > 0) {
-            var maxValue = Math.max.apply(null, data);
-            
+            var totals = [];
             for (var i = 0; i < data.length; i++) {
-                var value = data[i];
-                var barHeight = maxValue > 0 ? (value / maxValue * 160) : 0;
+                var v1 = (typeof data[i] === 'number') ? data[i] : 0;
+                var v2 = (subData && typeof subData[i] === 'number') ? subData[i] : 0;
+                totals.push(v1 + v2);
+            }
+            var maxValue = Math.max.apply(null, totals);
+            
+            var formatNum = function(num) {
+                if (num > 1000000) return (num / 1000000).toFixed(1) + 'M';
+                if (num > 1000) return (num / 1000).toFixed(1) + 'K';
+                return String(num);
+            };
+
+            for (var i = 0; i < data.length; i++) {
+                var valWan = (typeof data[i] === 'number') ? data[i] : 0;
+                var valLan = (subData && typeof subData[i] === 'number') ? subData[i] : 0;
+                var valTotal = valWan + valLan;
+                
+                var barHeight = 2;
+                if (valTotal > 0 && maxValue > 0) {
+                    var ratio = valTotal / maxValue;
+                    barHeight = Math.max(6, Math.round(Math.sqrt(ratio) * 125));
+                }
+                var color = colors ? colors[i % colors.length] : '#0088cc';
+                var fullLabel = labels ? labels[i] : ('Tin ' + i);
+                var shortTag = 'T' + i;
+                
+                var formattedVal = formatNum(valTotal);
+                var tooltipText = fullLabel + ' : ' + formattedVal;
+                if (subData && (valWan > 0 || valLan > 0)) {
+                    tooltipText += ' (WAN: ' + formatNum(valWan) + ' | LAN: ' + formatNum(valLan) + ')';
+                }
                 
                 var barContainer = E('div', { 
-                    'style': 'flex: 1; text-align: center; padding: 0 2px; display: flex; flex-direction: column; align-items: center;' 
+                    'style': 'flex: 1; text-align: center; padding: 0 2px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; cursor: pointer;',
+                    'title': tooltipText
                 });
                 
-                // Add value at top of bar
-                var valueLabel = E('div', { 'style': 'font-size: 10px; margin-bottom: 5px;' }, 
-                                 (typeof value === 'number') ? 
-                                 (value > 1000000 ? (value / 1000000).toFixed(1) + 'M' : 
-                                  value > 1000 ? (value / 1000).toFixed(1) + 'K' : value) : '0');
+                var valueLabel = E('div', { 
+                    'style': 'font-size: 10px; margin-bottom: 4px; font-weight: 600; opacity: ' + (valTotal > 0 ? '1' : '0.35') + ';' 
+                }, formattedVal);
                 
                 var bar = E('div', { 
-                    'style': 'background-color: ' + (colors ? colors[i % colors.length] : '#0088cc') + 
-                             '; width: 80%; height: ' + (barHeight > 0 ? barHeight : 1) + 'px;' 
+                    'style': 'width: 70%; max-width: 28px; min-width: 12px; height: ' + (barHeight > 0 ? barHeight : 2) + 'px; border-radius: 4px 4px 0 0; display: flex; flex-direction: column-reverse; overflow: hidden; opacity: ' + (valTotal > 0 ? '0.95' : '0.25') + '; transition: height 0.3s ease;' 
                 });
                 
-                var label = E('div', { 'style': 'font-size: 10px; margin-top: 5px; white-space: nowrap;' }, 
-                             labels ? labels[i] : '');
+                if (subData && valTotal > 0 && (valWan > 0 || valLan > 0)) {
+                    var wanHeight = Math.round(barHeight * (valWan / valTotal));
+                    var lanHeight = barHeight - wanHeight;
+                    
+                    if (wanHeight > 0) {
+                        bar.appendChild(E('div', {
+                            'style': 'width: 100%; height: ' + wanHeight + 'px; background-color: ' + color + '; opacity: 0.95;',
+                            'title': 'WAN: ' + formatNum(valWan)
+                        }));
+                    }
+                    if (lanHeight > 0) {
+                        bar.appendChild(E('div', {
+                            'style': 'width: 100%; height: ' + lanHeight + 'px; background-color: ' + color + '; opacity: 0.45; border-bottom: ' + (wanHeight > 0 ? '1px solid rgba(255,255,255,0.3)' : 'none') + ';',
+                            'title': 'LAN Pre-Proxy: ' + formatNum(valLan)
+                        }));
+                    }
+                } else {
+                    bar.style.backgroundColor = color;
+                }
+                
+                var tagBadge = E('div', { 
+                    'style': 'font-size: 11px; font-weight: bold; margin-top: 6px; color: ' + color + ';' 
+                }, shortTag);
                 
                 barContainer.appendChild(valueLabel);
                 barContainer.appendChild(bar);
-                barContainer.appendChild(label);
+                barContainer.appendChild(tagBadge);
                 chartData.appendChild(barContainer);
             }
+            
+            container.appendChild(chartData);
+            
+            // Clean, wrapped legend grid underneath bars - 100% immune to overlap
+            var legendContainer = E('div', { 
+                'style': 'display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 14px; margin-top: 12px; font-size: 11px;' 
+            });
+            
+            for (var j = 0; j < data.length; j++) {
+                var c = colors ? colors[j % colors.length] : '#0088cc';
+                var lbl = labels ? labels[j] : ('Tin ' + j);
+                var cleanName = lbl.replace(/^Tin\s*\d+\s*:\s*/i, '');
+                
+                var legendItem = E('div', { 
+                    'style': 'display: inline-flex; align-items: center; white-space: nowrap;' 
+                }, [
+                    E('span', { 
+                        'style': 'display: inline-block; width: 10px; height: 10px; border-radius: 3px; background-color: ' + c + '; margin-right: 5px; flex-shrink: 0;' 
+                    }),
+                    E('span', { 'style': 'opacity: 0.88;' }, 'T' + j + ': ' + cleanName)
+                ]);
+                legendContainer.appendChild(legendItem);
+            }
+            
+            container.appendChild(legendContainer);
         } else {
-            chartData.appendChild(E('div', { 'style': 'width: 100%; text-align: center; padding-top: 70px;' }, 
+            chartData.appendChild(E('div', { 'style': 'width: 100%; text-align: center; padding-top: 60px;' }, 
                                  _('No data available')));
+            container.appendChild(chartData);
         }
         
-        container.appendChild(chartData);
         return container;
     },
 
     // Process CAKE statistics
     processCakeStats: function(data) {
-        if (!data || (!data.cake_egress && !data.cake_ingress)) {
+        if (!data || (!data.cake_egress && !data.cake_ingress && !data.cake_lan)) {
             return { tables: [], charts: [] };
         }
         
         var result = { tables: [], charts: [] };
         var self = this;
+        var diffservColors = ['#4CAF50', '#2196F3', '#FFC107', '#F44336', '#9C27B0', '#795548', '#FF9800', '#607D8B'];
         
-        // Helper function to get tin name based on diffserv mode
+        // Helper function to get descriptive tin names based on diffserv mode
         function getTinName(tinIndex, diffservMode) {
             if (diffservMode === 'diffserv3') {
-                return ['Bulk', 'Best Effort', 'Voice'][tinIndex] || 'Unknown';
+                return [
+                    _('Tin 0: Bulk (CS1 / Low Priority)'),
+                    _('Tin 1: Best Effort (General Traffic)'),
+                    _('Tin 2: Voice / Gaming (EF / High Priority)')
+                ][tinIndex] || ('Tin ' + tinIndex);
             } else if (diffservMode === 'diffserv4') {
-                return ['Bulk', 'Best Effort', 'Video', 'Voice'][tinIndex] || 'Unknown';
+                return [
+                    _('Tin 0: Bulk (CS1 / Low Priority)'),
+                    _('Tin 1: Best Effort (General Traffic)'),
+                    _('Tin 2: Video (AF / Low Latency)'),
+                    _('Tin 3: Voice / Gaming (EF / Realtime)')
+                ][tinIndex] || ('Tin ' + tinIndex);
             } else if (diffservMode === 'diffserv8') {
-                return ['Tin 0', 'Tin 1', 'Tin 2', 'Tin 3', 'Tin 4', 'Tin 5', 'Tin 6', 'Tin 7'][tinIndex] || 'Unknown';
+                return [
+                    _('Tin 0: Low Priority (LE / Background)'),
+                    _('Tin 1: High Throughput (AF1x / TOS2 / CS1)'),
+                    _('Tin 2: Best Effort (CS0 / General Traffic)'),
+                    _('Tin 3: Video Streaming (AF3x / AF4x / CS3)'),
+                    _('Tin 4: Low-Latency Transactions (AF2x / TOS4)'),
+                    _('Tin 5: Interactive Shell (CS2 / TOS1 / SSH)'),
+                    _('Tin 6: Minimum Latency (EF / VA / CS4 / CS5)'),
+                    _('Tin 7: Network Control (CS6 / CS7)')
+                ][tinIndex] || ('Tin ' + tinIndex);
             } else {
                 return 'Tin ' + tinIndex;
             }
         }
         
-        // Process CAKE egress statistics
-        if (data.cake_egress) {
+        // 1. Process Consolidated CAKE Egress (Pre-Proxy LAN + Post-Proxy WAN)
+        if (data.cake_egress || data.cake_lan) {
             var egressRows = [];
-            var diffservMode = data.cake_egress.options ? data.cake_egress.options.diffserv : 'diffserv4';
+            var diffservMode = (data.cake_egress && data.cake_egress.options && data.cake_egress.options.diffserv) ?
+                               data.cake_egress.options.diffserv :
+                               ((data.cake_lan && data.cake_lan.options && data.cake_lan.options.diffserv) ?
+                                data.cake_lan.options.diffserv : 'diffserv8');
             
-            if (data.cake_egress.tins) {
-                data.cake_egress.tins.forEach(function(tin, index) {
+            var wanTins = (data.cake_egress && data.cake_egress.tins) ? data.cake_egress.tins : [];
+            var lanTins = (data.cake_lan && data.cake_lan.tins) ? data.cake_lan.tins : [];
+            var maxTins = Math.max(wanTins.length, lanTins.length);
+            if (maxTins === 0) maxTins = (diffservMode === 'diffserv8' ? 8 : (diffservMode === 'diffserv4' ? 4 : 3));
+            
+            var isDualCake = lanTins.length > 0;
+            
+            var wanBytesArr = [];
+            var lanBytesArr = [];
+            var totalBytesArr = [];
+            var wanPktsArr = [];
+            var lanPktsArr = [];
+            var totalPktsArr = [];
+            var wanDropsArr = [];
+            var lanDropsArr = [];
+            var totalDropsArr = [];
+            var tinLabels = [];
+            
+            for (var index = 0; index < maxTins; index++) {
+                var wanTin = wanTins[index] || {};
+                var lanTin = lanTins[index] || {};
+                
+                var lanBytes = lanTin.sent_bytes || 0;
+                var lanPkts = lanTin.sent_packets || 0;
+                var wanBytes = wanTin.sent_bytes || 0;
+                var wanPkts = wanTin.sent_packets || 0;
+                
+                var lanDrops = lanTin.drops || 0;
+                var wanDrops = wanTin.drops || 0;
+                var totalBytes = lanBytes + wanBytes;
+                var totalPkts = lanPkts + wanPkts;
+                var totalDrops = lanDrops + wanDrops;
+                var totalEcn = (lanTin.ecn_mark || 0) + (wanTin.ecn_mark || 0);
+                
+                var thrRate = wanTin.threshold_rate || lanTin.threshold_rate || 0;
+                var avgDelay = wanTin.avg_delay_us || lanTin.avg_delay_us || 0;
+                var peakDelay = wanTin.peak_delay_us || lanTin.peak_delay_us || 0;
+                
+                wanBytesArr.push(wanBytes);
+                lanBytesArr.push(lanBytes);
+                totalBytesArr.push(totalBytes);
+                
+                wanPktsArr.push(wanPkts);
+                lanPktsArr.push(lanPkts);
+                totalPktsArr.push(totalPkts);
+                
+                wanDropsArr.push(wanDrops);
+                lanDropsArr.push(lanDrops);
+                totalDropsArr.push(totalDrops);
+                tinLabels.push(getTinName(index, diffservMode));
+                
+                if (isDualCake) {
                     egressRows.push([
                         'Tin ' + index,
-                        // Convert threshold_rate from Byte/s to Kbit/s
-                        bytesToKbits(tin.threshold_rate) + ' Kbit/s',
-                        formatTime(tin.target_us),
-                        formatTime(tin.interval_us),
-                        // Add delay metrics (µs)
-                        formatTime(tin.peak_delay_us),
-                        formatTime(tin.avg_delay_us),
-                        formatTime(tin.base_delay_us),
-                        formatSize(tin.sent_bytes),
-                        tin.sent_packets,
-                        tin.drops,
-                        tin.ecn_mark
+                        getTinName(index, diffservMode),
+                        bytesToKbits(thrRate) + ' Kbit/s',
+                        formatSize(lanBytes) + ' (' + lanPkts.toLocaleString() + ')',
+                        formatSize(wanBytes) + ' (' + wanPkts.toLocaleString() + ')',
+                        formatSize(totalBytes) + ' (' + totalPkts.toLocaleString() + ')',
+                        formatTime(avgDelay),
+                        formatTime(peakDelay),
+                        totalDrops.toLocaleString(),
+                        totalEcn.toLocaleString()
                     ]);
-                });
+                } else {
+                    egressRows.push([
+                        'Tin ' + index,
+                        getTinName(index, diffservMode),
+                        bytesToKbits(thrRate) + ' Kbit/s',
+                        formatSize(wanBytes),
+                        wanPkts.toLocaleString(),
+                        formatTime(avgDelay),
+                        formatTime(peakDelay),
+                        totalDrops.toLocaleString(),
+                        totalEcn.toLocaleString()
+                    ]);
+                }
             }
             
-            // Create table for CAKE egress tins
-            if (egressRows.length > 0) {
-                result.tables.push(self.createStatsTable(
-                    _('CAKE Egress Statistics'),
-                    [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
-                    egressRows
-                ));
-                
-                // Create charts for CAKE egress stats
-                var tinLabels = egressRows.map(function(row, index) {
-                    return getTinName(index, diffservMode);
-                });
-                
-                var sentBytes = egressRows.map(function(row) { 
-                    return parseSizeToBytes(row[7]);
-                });
-                
-                var sentPackets = egressRows.map(function(row) { return parseInt(row[8]); });
-                var droppedPackets = egressRows.map(function(row) { return parseInt(row[9]); });
-                
-                result.charts.push(self.createChart(
-                    'cake-egress-bytes',
-                    _('Egress Bytes Sent by Tin'),
-                    sentBytes,
-                    tinLabels,
-                    chartColors
-                ));
-                
-                result.charts.push(self.createChart(
-                    'cake-egress-packets',
-                    _('Egress Packets Sent by Tin'),
-                    sentPackets,
-                    tinLabels,
-                    chartColors
-                ));
-                
-                result.charts.push(self.createChart(
-                    'cake-egress-dropped',
-                    _('Egress Dropped Packets by Tin'),
-                    droppedPackets,
-                    tinLabels,
-                    chartColors
-                ));
-            }
+            var egressHeaders = isDualCake ? [
+                _('Tin'),
+                _('Traffic Class / Priority'),
+                _('Threshold'),
+                _('Pre-Routing (LAN)'),
+                _('After-Routing (WAN)'),
+                _('Total Upload Sent'),
+                _('Avg Delay'),
+                _('Peak Delay'),
+                _('Dropped'),
+                _('ECN Marked')
+            ] : [
+                _('Tin'),
+                _('Traffic Class / Priority'),
+                _('Threshold'),
+                _('Bytes Sent'),
+                _('Packets Sent'),
+                _('Avg Delay'),
+                _('Peak Delay'),
+                _('Dropped'),
+                _('ECN Marked')
+            ];
+            
+            result.tables.push(self.createStatsTable(
+                _('CAKE Egress Statistics (Upload & Pre-Proxy Merged)'),
+                egressHeaders,
+                egressRows
+            ));
+            
+            var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
+            
+            // Single unified interactive chart for Egress (Upload & Pre-Proxy Merged)
+            result.egressChart = self.createUnifiedSingleChart(
+                'cake-egress-unified',
+                _('CAKE Egress Flow Distribution (Pre-Routing LAN + After-Routing WAN)'),
+                { bytes: wanBytesArr, packets: wanPktsArr, dropped: wanDropsArr },
+                tinLabels,
+                cakeColors,
+                isDualCake ? { bytes: lanBytesArr, packets: lanPktsArr, dropped: lanDropsArr } : null,
+                self.activeEgressMetric || 'bytes',
+                function(newMetric) { self.activeEgressMetric = newMetric; }
+            );
+            result.charts.push(result.egressChart);
         }
         
-        // Process CAKE ingress statistics
+        // 2. Process CAKE Ingress Statistics
         if (data.cake_ingress) {
             var ingressRows = [];
             var diffservMode = data.cake_ingress.options ? data.cake_ingress.options.diffserv : 'diffserv4';
+            var ingressTins = data.cake_ingress.tins || [];
             
-            if (data.cake_ingress.tins) {
-                data.cake_ingress.tins.forEach(function(tin, index) {
-                    ingressRows.push([
-                        'Tin ' + index,
-                        // Convert threshold_rate from Byte/s to Kbit/s
-                        bytesToKbits(tin.threshold_rate) + ' Kbit/s',
-                        formatTime(tin.target_us),
-                        formatTime(tin.interval_us),
-                        // Add delay metrics (µs)
-                        formatTime(tin.peak_delay_us),
-                        formatTime(tin.avg_delay_us),
-                        formatTime(tin.base_delay_us),
-                        formatSize(tin.sent_bytes),
-                        tin.sent_packets,
-                        tin.drops,
-                        tin.ecn_mark
-                    ]);
-                });
-            }
+            var sentBytesArr = [];
+            var sentPktsArr = [];
+            var dropsArr = [];
+            var tinLabels = [];
             
-            // Create table for CAKE ingress tins
+            ingressTins.forEach(function(tin, index) {
+                var bytesVal = tin.sent_bytes || 0;
+                var pktsVal = tin.sent_packets || 0;
+                var dropsVal = tin.drops || 0;
+                var ecnVal = tin.ecn_mark || 0;
+                
+                sentBytesArr.push(bytesVal);
+                sentPktsArr.push(pktsVal);
+                dropsArr.push(dropsVal);
+                tinLabels.push(getTinName(index, diffservMode));
+                
+                ingressRows.push([
+                    'Tin ' + index,
+                    getTinName(index, diffservMode),
+                    bytesToKbits(tin.threshold_rate) + ' Kbit/s',
+                    formatSize(bytesVal),
+                    pktsVal.toLocaleString(),
+                    formatTime(tin.avg_delay_us),
+                    formatTime(tin.peak_delay_us),
+                    formatTime(tin.base_delay_us),
+                    dropsVal.toLocaleString(),
+                    ecnVal.toLocaleString()
+                ]);
+            });
+            
             if (ingressRows.length > 0) {
                 result.tables.push(self.createStatsTable(
-                    _('CAKE Ingress Statistics'),
-                    [_('Tin'), _('Threshold'), _('Target'), _('Interval'), _('Peak Delay'), _('Avg Delay'), _('Sparse Delay'), _('Bytes'), _('Packets'), _('Dropped'), _('ECN Marked')],
+                    _('CAKE Ingress Statistics (Download)'),
+                    [_('Tin'), _('Traffic Class / Priority'), _('Threshold'), _('Bytes Received'), _('Packets Received'), _('Avg Delay'), _('Peak Delay'), _('Sparse Delay'), _('Dropped'), _('ECN Marked')],
                     ingressRows
                 ));
                 
-                // Create charts for CAKE ingress stats
-                var tinLabels = ingressRows.map(function(row, index) {
-                    return getTinName(index, diffservMode);
-                });
+                var cakeColors = (diffservMode === 'diffserv8') ? diffservColors : chartColors;
                 
-                var sentBytes = ingressRows.map(function(row) { 
-                    return parseSizeToBytes(row[7]);
-                });
-                
-                var sentPackets = ingressRows.map(function(row) { return parseInt(row[8]); });
-                var droppedPackets = ingressRows.map(function(row) { return parseInt(row[9]); });
-                
-                result.charts.push(self.createChart(
-                    'cake-ingress-bytes',
-                    _('Ingress Bytes Sent by Tin'),
-                    sentBytes,
+                // Single unified interactive chart for Ingress (Download)
+                result.ingressChart = self.createUnifiedSingleChart(
+                    'cake-ingress-unified',
+                    _('CAKE Ingress Flow Distribution (WAN Ingress)'),
+                    { bytes: sentBytesArr, packets: sentPktsArr, dropped: dropsArr },
                     tinLabels,
-                    chartColors
-                ));
-                
-                result.charts.push(self.createChart(
-                    'cake-ingress-packets',
-                    _('Ingress Packets Sent by Tin'),
-                    sentPackets,
-                    tinLabels,
-                    chartColors
-                ));
-                
-                result.charts.push(self.createChart(
-                    'cake-ingress-dropped',
-                    _('Ingress Dropped Packets by Tin'),
-                    droppedPackets,
-                    tinLabels,
-                    chartColors
-                ));
+                    cakeColors,
+                    null,
+                    self.activeIngressMetric || 'bytes',
+                    function(newMetric) { self.activeIngressMetric = newMetric; }
+                );
+                result.charts.push(result.ingressChart);
             }
         }
         
@@ -1580,23 +1961,30 @@ return view.extend({
                 }
             }
             
+            // Architecture & Pipeline Overview (Theme-consistent)
+            var pipelineBar = E('div', { 'class': 'cbi-section-node', 'style': 'margin-top: 6px; padding: 6px 10px; border: 1px solid var(--cbi-border, rgba(128,128,128,0.2)); border-radius: 4px; font-size: 12px;' }, [
+                E('span', { 'style': 'font-weight: bold; margin-right: 6px;' }, _('QoS Pipeline:')),
+                E('span', {}, 'LAN Ingress ➔ Dual-CAKE (Pre-Proxy) ➔ QoSmate (-160) ➔ Passwall 2 / Xray (-151) ➔ WAN CAKE Diffserv8 (Post-Proxy)')
+            ]);
             generalInfo.appendChild(infoContainer);
+            generalInfo.appendChild(pipelineBar);
             contentContainer.appendChild(generalInfo);
             
             // Create tabbed interface
             var tabsContainer = E('div', { 'class': 'cbi-section', 'style': 'padding: 0; margin-bottom: 5px;' });
             var tabNames = [_('Egress (Upload)'), _('Ingress (Download)')];
+            
             var autorateTabIndex = -1;
             if (autorateEnabled) {
                 autorateTabIndex = tabNames.length;
                 tabNames.push(_('Autorate'));
             }
-            // Reset to first tab if saved index is out of range (e.g. autorate was disabled)
+            // Reset to first tab if saved index is out of range
             if (view.activeTabIndex >= tabNames.length) view.activeTabIndex = 0;
-            var tabContents = [
-                E('div', { 'style': 'padding: 5px 0;' }), 
-                E('div', { 'style': 'padding: 5px 0; display: none;' })
-            ];
+            var tabContents = [];
+            for (var tIdx = 0; tIdx < tabNames.length; tIdx++) {
+                tabContents.push(E('div', { 'style': 'padding: 5px 0; display: ' + (tIdx === view.activeTabIndex ? 'block' : 'none') + ';' }));
+            }
             
             // Reference to persistent autorate container
             var autorateContainer = document.querySelector('.qosmate-autorate-container');
@@ -1675,22 +2063,11 @@ return view.extend({
                         }
                     }
                     
-                    // Egress table section
-                    if (egressTable) {
-                        tabContents[0].appendChild(egressTable);
-                    }
+                    // Process charts first so we can pair tables with their charts
+                    var egressCharts = [];
+                    var ingressCharts = [];
                     
-                    // Ingress table section
-                    if (ingressTable) {
-                        tabContents[1].appendChild(ingressTable);
-                    }
-                    
-                    // Process charts
                     if (cakeResults.charts.length > 0) {
-                        var egressCharts = [];
-                        var ingressCharts = [];
-                        
-                        // Categorize charts as egress or ingress based on their titles
                         for (var i = 0; i < cakeResults.charts.length; i++) {
                             var chartTitle = cakeResults.charts[i].querySelector('h3');
                             var titleText = chartTitle ? (chartTitle.textContent || chartTitle.innerText) : '';
@@ -1701,36 +2078,26 @@ return view.extend({
                                 ingressCharts.push(cakeResults.charts[i]);
                             }
                         }
-                        
-                        // Create egress charts section
-                        if (egressCharts.length > 0) {
-                            var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
-                            var egressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
-                            });
-                            
-                            egressCharts.forEach(function(chart) {
-                                egressGrid.appendChild(chart);
-                            });
-                            
-                            egressChartsContainer.appendChild(egressGrid);
-                            tabContents[0].appendChild(egressChartsContainer);
+                    }
+
+                    // 1. Egress (Upload) Tab Content: Single Full-Width Unified Chart (TOP) + Unified Table (BOTTOM)
+                    if (tabContents[0]) {
+                        if (cakeResults.egressChart) {
+                            tabContents[0].appendChild(cakeResults.egressChart);
+                        } else if (egressCharts.length > 0) {
+                            tabContents[0].appendChild(egressCharts[0]);
                         }
-                        
-                        // Create ingress charts section
-                        if (ingressCharts.length > 0) {
-                            var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
-                            var ingressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
-                            });
-                            
-                            ingressCharts.forEach(function(chart) {
-                                ingressGrid.appendChild(chart);
-                            });
-                            
-                            ingressChartsContainer.appendChild(ingressGrid);
-                            tabContents[1].appendChild(ingressChartsContainer);
+                        if (egressTable) tabContents[0].appendChild(egressTable);
+                    }
+                    
+                    // 2. Ingress (Download) Tab Content: Single Full-Width Unified Chart (TOP) + Unified Table (BOTTOM)
+                    if (tabContents[1]) {
+                        if (cakeResults.ingressChart) {
+                            tabContents[1].appendChild(cakeResults.ingressChart);
+                        } else if (ingressCharts.length > 0) {
+                            tabContents[1].appendChild(ingressCharts[0]);
                         }
+                        if (ingressTable) tabContents[1].appendChild(ingressTable);
                     }
                 }
             } else if (qosStats.root_qdisc === 'hfsc') {
@@ -1755,17 +2122,7 @@ return view.extend({
                         }
                     }
                     
-                    // Egress table section
-                    if (egressTable) {
-                        tabContents[0].appendChild(egressTable);
-                    }
-                    
-                    // Ingress table section
-                    if (ingressTable) {
-                        tabContents[1].appendChild(ingressTable);
-                    }
-                    
-                    // Process charts
+                    // Process charts first so they appear at the top
                     if (hfscResults.charts.length > 0) {
                         var egressCharts = [];
                         var ingressCharts = [];
@@ -1782,11 +2139,11 @@ return view.extend({
                             }
                         }
                         
-                        // Create egress charts section
+                        // Create egress charts section (TOP)
                         if (egressCharts.length > 0) {
                             var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var egressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             egressCharts.forEach(function(chart) {
@@ -1797,11 +2154,11 @@ return view.extend({
                             tabContents[0].appendChild(egressChartsContainer);
                         }
                         
-                        // Create ingress charts section
+                        // Create ingress charts section (TOP)
                         if (ingressCharts.length > 0) {
                             var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var ingressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             ingressCharts.forEach(function(chart) {
@@ -1811,6 +2168,16 @@ return view.extend({
                             ingressChartsContainer.appendChild(ingressGrid);
                             tabContents[1].appendChild(ingressChartsContainer);
                         }
+                    }
+                    
+                    // Egress table section (BOTTOM)
+                    if (egressTable && tabContents[0]) {
+                        tabContents[0].appendChild(egressTable);
+                    }
+                    
+                    // Ingress table section (BOTTOM)
+                    if (ingressTable && tabContents[1]) {
+                        tabContents[1].appendChild(ingressTable);
                     }
                 }
             } else if (qosStats.root_qdisc === 'hybrid') {
@@ -1841,22 +2208,7 @@ return view.extend({
                         }
                     }
                     
-                    // Add tables to appropriate tabs
-                    if (egressClassTable) {
-                        tabContents[0].appendChild(egressClassTable);
-                    }
-                    if (cakeEgressTable) {
-                        tabContents[0].appendChild(cakeEgressTable);
-                    }
-                    
-                    if (ingressClassTable) {
-                        tabContents[1].appendChild(ingressClassTable);
-                    }
-                    if (cakeIngressTable) {
-                        tabContents[1].appendChild(cakeIngressTable);
-                    }
-                    
-                    // Process charts
+                    // Process charts first so they appear at the top
                     if (hybridResults.charts.length > 0) {
                         var egressCharts = [];
                         var ingressCharts = [];
@@ -1873,11 +2225,11 @@ return view.extend({
                             }
                         }
                         
-                        // Create egress charts section
+                        // Create egress charts section (TOP)
                         if (egressCharts.length > 0) {
                             var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var egressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             egressCharts.forEach(function(chart) {
@@ -1888,11 +2240,11 @@ return view.extend({
                             tabContents[0].appendChild(egressChartsContainer);
                         }
                         
-                        // Create ingress charts section
+                        // Create ingress charts section (TOP)
                         if (ingressCharts.length > 0) {
                             var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var ingressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             ingressCharts.forEach(function(chart) {
@@ -1902,6 +2254,21 @@ return view.extend({
                             ingressChartsContainer.appendChild(ingressGrid);
                             tabContents[1].appendChild(ingressChartsContainer);
                         }
+                    }
+                    
+                    // Add tables to appropriate tabs (BOTTOM)
+                    if (egressClassTable) {
+                        tabContents[0].appendChild(egressClassTable);
+                    }
+                    if (cakeEgressTable) {
+                        tabContents[0].appendChild(cakeEgressTable);
+                    }
+                    
+                    if (ingressClassTable) {
+                        tabContents[1].appendChild(ingressClassTable);
+                    }
+                    if (cakeIngressTable) {
+                        tabContents[1].appendChild(cakeIngressTable);
                     }
                 }
             } else if (qosStats.root_qdisc === 'htb') {
@@ -1926,15 +2293,7 @@ return view.extend({
                         }
                     }
                     
-                    // Add tables to appropriate tabs
-                    if (egressClassTable) {
-                        tabContents[0].appendChild(egressClassTable);
-                    }
-                    if (ingressClassTable) {
-                        tabContents[1].appendChild(ingressClassTable);
-                    }
-                    
-                    // Process charts
+                    // Process charts first so they appear at the top
                     if (htbResults.charts.length > 0) {
                         var egressCharts = [];
                         var ingressCharts = [];
@@ -1951,11 +2310,11 @@ return view.extend({
                             }
                         }
                         
-                        // Create egress charts section
+                        // Create egress charts section (TOP)
                         if (egressCharts.length > 0) {
                             var egressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var egressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             egressCharts.forEach(function(chart) {
@@ -1966,11 +2325,11 @@ return view.extend({
                             tabContents[0].appendChild(egressChartsContainer);
                         }
                         
-                        // Create ingress charts section
+                        // Create ingress charts section (TOP)
                         if (ingressCharts.length > 0) {
                             var ingressChartsContainer = E('div', { 'class': 'cbi-section-node' });
                             var ingressGrid = E('div', { 
-                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px;' 
+                                'style': 'display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;' 
                             });
                             
                             ingressCharts.forEach(function(chart) {
@@ -1980,6 +2339,14 @@ return view.extend({
                             ingressChartsContainer.appendChild(ingressGrid);
                             tabContents[1].appendChild(ingressChartsContainer);
                         }
+                    }
+                    
+                    // Add tables to appropriate tabs (BOTTOM)
+                    if (egressClassTable) {
+                        tabContents[0].appendChild(egressClassTable);
+                    }
+                    if (ingressClassTable) {
+                        tabContents[1].appendChild(ingressClassTable);
                     }
                 }
             }
