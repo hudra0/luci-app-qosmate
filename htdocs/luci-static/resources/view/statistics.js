@@ -78,12 +78,6 @@ var bytesToKbits = function(bytes) {
     return (bytes * 8 / 1000).toFixed(2);
 };
 
-var callQoSmateRuleCounters = rpc.declare({
-    object: 'luci.qosmate_stats',
-    method: 'getRuleCounters',
-    expect: { }
-});
-
 var callQoSmateAutorateStats = rpc.declare({
     object: 'luci.qosmate_stats',
     method: 'getAutorateStats',
@@ -331,7 +325,6 @@ return view.extend({
             callQoSmateHistoricalStats(),
             callQoSmateRrdData(),
             callQoSmateAutorateStats(),
-            callQoSmateRuleCounters(),
             uci.load('qosmate')
         ]);
     },
@@ -344,8 +337,7 @@ return view.extend({
                 callQoSmateStats(),
                 callQoSmateHistoricalStats(),
                 callQoSmateRrdData(),
-                callQoSmateAutorateStats(),
-                callQoSmateRuleCounters()
+                callQoSmateAutorateStats()
             ]).then(function(data) {
                 view.updateContent(data);
                 return data;
@@ -1432,79 +1424,6 @@ return view.extend({
         return result;
     },
 
-    // Render active QoSmate classification rules table
-    renderRulesTable: function(countersData) {
-        var counters = (countersData && countersData.rule_counters) ? countersData.rule_counters : [];
-        var rows = [];
-        
-        var getTinBadge = function(name) {
-            var n = name.toLowerCase();
-            if (n.indexOf('dns') !== -1 || n.indexOf('ntp') !== -1 || n.indexOf('icmp') !== -1) {
-                return E('span', { 'class': 'badge', 'style': 'background:#7c3aed; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 7: Control (CS6)');
-            } else if (n.indexOf('gaming') !== -1 || n.indexOf('game') !== -1 || n.indexOf('cs2') !== -1 || n.indexOf('warzone') !== -1 || n.indexOf('fortnite') !== -1 || n.indexOf('rivals') !== -1 || n.indexOf('valorant') !== -1) {
-                return E('span', { 'class': 'badge', 'style': 'background:#dc2626; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 6: Gaming (CS5)');
-            } else if (n.indexOf('voice') !== -1 || n.indexOf('webrtc') !== -1 || n.indexOf('sip') !== -1) {
-                return E('span', { 'class': 'badge', 'style': 'background:#e11d48; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 6: Voice (EF/VA)');
-            } else if (n.indexOf('ssh') !== -1 || n.indexOf('shell') !== -1) {
-                return E('span', { 'class': 'badge', 'style': 'background:#2563eb; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 5: Interactive (CS2)');
-            } else if (n.indexOf('cloudflare') !== -1 || n.indexOf('tunnel') !== -1 || n.indexOf('homelab') !== -1 || n.indexOf('uptime') !== -1 || n.indexOf('luci') !== -1) {
-                return E('span', { 'class': 'badge', 'style': 'background:#0d9488; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 4: Low-Latency (AF21)');
-            } else if (n.indexOf('video') !== -1 || n.indexOf('stun') !== -1 || n.indexOf('rtmp') !== -1) {
-                return E('span', { 'class': 'badge', 'style': 'background:#ea580c; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 3: Video (AF41)');
-            } else if (n.indexOf('torrent') !== -1 || n.indexOf('p2p') !== -1 || n.indexOf('bulk') !== -1) {
-                return E('span', { 'class': 'badge', 'style': 'background:#475569; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 1: Bulk (CS1)');
-            }
-            return E('span', { 'class': 'badge', 'style': 'background:#16a34a; color:#fff; padding:2px 8px; border-radius:3px; font-weight:bold; font-size:11px;' }, 'Tin 2: Best Effort (CS0)');
-        };
-
-        counters.forEach(function(r) {
-            rows.push([
-                r.rule_name,
-                getTinBadge(r.rule_name),
-                formatSize(r.total_bytes || 0),
-                (r.total_packets || 0).toLocaleString(),
-                (r.ipv4_packets || 0).toLocaleString(),
-                (r.ipv6_packets || 0).toLocaleString()
-            ]);
-        });
-
-        var container = E('div', { 'class': 'cbi-section' });
-        container.appendChild(E('h3', {}, _('QoSmate Live Classification Rules Activity')));
-        container.appendChild(E('div', { 'class': 'cbi-section-descr' }, _('Real-time packet and byte accounting from Netfilter chains across Dual-CAKE pre-proxy and WAN egress.')));
-        
-        var table = E('table', { 'class': 'table cbi-section-table', 'style': 'width: 100%; margin-top: 8px;' }, [
-            E('tr', { 'class': 'tr cbi-section-table-titles' }, [
-                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: left;' }, _('Rule Name')),
-                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: left;' }, _('Diffserv8 Priority Tin')),
-                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: right;' }, _('Total Bytes')),
-                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: right;' }, _('Total Packets')),
-                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: right;' }, _('IPv4 Packets')),
-                E('th', { 'class': 'th cbi-section-table-cell', 'style': 'text-align: right;' }, _('IPv6 Packets'))
-            ])
-        ]);
-
-        if (rows.length === 0) {
-            table.appendChild(E('tr', { 'class': 'tr cbi-section-table-row' }, [
-                E('td', { 'class': 'td cbi-section-table-cell', 'colspan': 6, 'style': 'text-align: center; color: #888; font-style: italic;' }, _('No active rule counters recorded yet.'))
-            ]));
-        } else {
-            rows.forEach(function(row) {
-                var tr = E('tr', { 'class': 'tr cbi-section-table-row' }, [
-                    E('td', { 'class': 'td cbi-section-table-cell', 'style': 'font-weight: 500;' }, row[0]),
-                    E('td', { 'class': 'td cbi-section-table-cell' }, row[1]),
-                    E('td', { 'class': 'td cbi-section-table-cell', 'style': 'text-align: right; font-family: monospace;' }, row[2]),
-                    E('td', { 'class': 'td cbi-section-table-cell', 'style': 'text-align: right; font-family: monospace;' }, row[3]),
-                    E('td', { 'class': 'td cbi-section-table-cell', 'style': 'text-align: right; font-family: monospace;' }, row[4]),
-                    E('td', { 'class': 'td cbi-section-table-cell', 'style': 'text-align: right; font-family: monospace;' }, row[5])
-                ]);
-                table.appendChild(tr);
-            });
-        }
-
-        container.appendChild(table);
-        return container;
-    },
-
     render: function(data) {
         var view = this;
         var qosStats = data[0];
@@ -1694,7 +1613,6 @@ return view.extend({
         var historicalStats = data[1];
         var rrdData = data[2];
         var autorateStats = data[3];
-        var ruleCounters = data[4] || { rule_counters: [] };
         
         // Update autorate charts (persistent container, not rebuilt)
         var autorateEnabled = autorateStats && autorateStats.autorate_enabled;
@@ -1803,8 +1721,6 @@ return view.extend({
             // Create tabbed interface
             var tabsContainer = E('div', { 'class': 'cbi-section', 'style': 'padding: 0; margin-bottom: 5px;' });
             var tabNames = [_('Egress (Upload)'), _('Ingress (Download)')];
-            var rulesTabIndex = tabNames.length;
-            tabNames.push(_('Rules Activity'));
             
             var autorateTabIndex = -1;
             if (autorateEnabled) {
@@ -2277,11 +2193,6 @@ return view.extend({
                         }
                     }
                 }
-            }
-            
-            // Rules Activity table section
-            if (rulesTabIndex >= 0 && tabContents[rulesTabIndex]) {
-                tabContents[rulesTabIndex].appendChild(this.renderRulesTable(ruleCounters));
             }
             
             // Append tab contents to container
